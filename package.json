@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Converts module differences in source files between ES and CommonJS.",
   "type": "module",
   "main": "dist/module.js",

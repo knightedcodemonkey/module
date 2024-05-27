@@ -3,87 +3,30 @@ import _traverse from '@babel/traverse'
 
 import type { ParseResult } from '@babel/parser'
 import type { File } from '@babel/types'
+import type { FormatterOptions } from './types.js'
 
-import type { ModuleOptions } from './types.js'
+import { metaProperty } from './formatters/metaProperty.js'
+import { memberExpression } from './formatters/memberExpression.js'
+import { expressionStatement } from './formatters/expressionStatement.js'
 
 const traverse = _traverse.default
 
-type FormatOptions = Omit<ModuleOptions, 'out'>
-export const format = (code: string, ast: ParseResult<File>, options: FormatOptions) => {
+/**
+ * Note, there is no specific conversion for `import.meta.main` as it does not exist.
+ * @see https://github.com/nodejs/node/issues/49440
+ */
+export const format = (code: string, ast: ParseResult<File>, options: FormatterOptions) => {
   const src = new MagicString(code)
-  const { type = 'commonjs' } = options
 
   traverse(ast, {
-    MetaProperty(metaPropertyPath) {
-      if (type === 'commonjs') {
-        const path = metaPropertyPath.findParent(path => path.isMemberExpression())
-
-        if (path) {
-          const { node } = path
-          const { start, end } = node
-
-          if (
-            node.type === 'MemberExpression' &&
-            node.property.type === 'Identifier' &&
-            typeof start == 'number' &&
-            typeof end === 'number'
-          ) {
-            const name = node.property.name
-
-            switch (name) {
-              case 'url':
-                src.update(start, end, 'require("node:url").pathToFileURL(__filename).toString()')
-                break
-              case 'filename':
-                src.update(start, end, '__filename')
-                break
-              case 'dirname':
-                src.update(start, end, '__dirname')
-                break
-              case 'resolve':
-                src.update(start, end, 'require.resolve')
-                break
-            }
-          }
-        }
-      }
+    MetaProperty(path) {
+      metaProperty(path, src, options)
     },
-    ExpressionStatement(expressionStatementPath) {
-      if (type === 'module') {
-        const { node } = expressionStatementPath
-        const { start, end } = node
-
-        if (node.expression.type === 'Identifier' && typeof start === 'number' && typeof end === 'number') {
-          const name = node.expression.name
-
-          switch (name) {
-            case '__filename':
-              src.update(start, end, 'import.meta.filename')
-              break
-            case '__dirname':
-              src.update(start, end, 'import.meta.dirname')
-              break
-          }
-        }
-      }
+    ExpressionStatement(path) {
+      expressionStatement(path, src, options)
     },
-    MemberExpression(memberExpressionPath) {
-      if (type === 'module') {
-        const { node } = memberExpressionPath
-        const { start, end } = node
-
-        // Update require.resolve to import.meta.resolve
-        if (
-          node.object.type === 'Identifier' &&
-          node.object.name === 'require' &&
-          node.property.type === 'Identifier' &&
-          node.property.name == 'resolve' &&
-          typeof start === 'number' &&
-          typeof end === 'number'
-        ) {
-          src.update(start, end, 'import.meta.resolve')
-        }
-      }
+    MemberExpression(path) {
+      memberExpression(path, src, options)
     },
   })
 
