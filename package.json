@@ -1,17 +1,17 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-alpha.0",
+  "version": "1.0.0-alpha.1",
   "description": "Converts module differences in source files between ES and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/types.d.ts",
+        "types": "./dist/module.d.ts",
         "default": "./dist/module.js"
       },
       "require": {
-        "types": "./dist/cjs/types.d.cts",
+        "types": "./dist/cjs/module.d.cts",
         "default": "./dist/cjs/module.cjs"
       },
       "default": "./dist/module.js"
@@ -49,6 +49,13 @@
   ],
   "author": "KCM <knightedcodemonkey@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knightedcodemonkey/module.git"
+  },
+  "bugs": {
+    "url": "https://github.com/knightedcodemonkey/module/issues"
+  },
   "devDependencies": {
     "@babel/preset-env": "^7.24.6",
     "@babel/preset-typescript": "^7.24.6",

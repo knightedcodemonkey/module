@@ -4,14 +4,14 @@
 [![codecov](https://codecov.io/gh/knightedcodemonkey/module/graph/badge.svg?token=AjayQQxghy)](https://codecov.io/gh/knightedcodemonkey/module)
 [![NPM version](https://img.shields.io/npm/v/@knighted/module.svg)](https://www.npmjs.com/package/@knighted/module)
 
-Node.js utility for transforming JavaScript or TypeScript files from one module system to another.
+Node.js utility for transforming a JavaScript or TypeScript file from an ES module to CommonJS, or vice versa.
 
 - ES module ➡️ CommonJS
 - CommonJS ➡️ ES module
 
-By default `@knighted/module` transforms globals from one module scope to another and returns the modified source, but it accepts options that allow
+By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs), but it also accepts options that allow:
 
-- Module loading transforms, i.e, `import`/`export` converted to `require`/`exports`
+- Converting `import`/`export` to `require`/`exports`
 - Extensions to be updated in relative specifiers
 - Write transformed source code to a filename
 
@@ -41,7 +41,7 @@ const detectCalledFromCli = async path => {
 detectCalledFromCli(argv[1])
 ```
 
-You can use transform it to the equivalent CommonJS module
+You can transform it to the equivalent CommonJS module
 
 ```js
 import { transform } from '@knighted/module'
