@@ -18,9 +18,12 @@ describe('@knighted/module', () => {
     assert.ok(result.indexOf('__dirname') > -1)
     assert.ok(result.indexOf('__filename') > -1)
     assert.ok(result.indexOf("require.resolve('./test.js')") > -1)
+    // Check `import.meta` transformation
+    assert.equal(/import\.meta\s/.test(result), false)
+    assert.ok(result.indexOf('require.main') > -1)
   })
 
-  it('transforms some commonjs module scope globals to es module scope globals', async () => {
+  it('transforms commonjs module scope globals to es module scope globals', async () => {
     const result = await transform(join(fixtures, 'file.cjs'), { type: 'module' })
 
     assert.equal(result.indexOf('__filename'), -1)
@@ -29,5 +32,11 @@ describe('@knighted/module', () => {
     assert.ok(result.indexOf('import.meta.filename') > -1)
     assert.ok(result.indexOf('import.meta.dirname') > -1)
     assert.ok(result.indexOf('import.meta.resolve') > -1)
+    // Check `module`, `exports` and `require.cache`
+    assert.equal(!/module\s/.test(result), true)
+    assert.equal(!/\sexports\s/.test(result), true)
+    assert.equal(result.indexOf('require.cache'), -1)
+    assert.equal(/import\.meta\s/.test(result), true)
+    assert.ok(result.indexOf('{}') > -1)
   })
 })
