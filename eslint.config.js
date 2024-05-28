@@ -12,10 +12,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['test/**/*.cjs'],
+    files: ['test/fixtures/**/*'],
     rules: {
       'no-undef': 'off',
+      'n/no-missing-import': 'off',
       '@typescript-eslint/no-var-requires': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
 )
