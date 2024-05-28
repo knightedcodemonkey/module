@@ -4,7 +4,7 @@ import.meta
 import.meta.url
 import.meta.dirname
 import.meta.filename
-import.meta.resolve('./test.js')
+import.meta.resolve('./file.cjs')
 
 export const esmodule = true
 export { commonjs }

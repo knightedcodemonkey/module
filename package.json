@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Converts module differences in source files between ES and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -70,11 +70,12 @@
     "prettier": "^3.2.5",
     "tsx": "^4.11.0",
     "typescript": "^5.4.5",
-    "typescript-eslint": "^8.0.0-alpha.16"
+    "typescript-eslint": "^8.0.0-alpha.18"
   },
   "dependencies": {
     "@babel/parser": "^7.24.6",
     "@babel/traverse": "^7.24.6",
+    "@knighted/specifier": "^2.0.0-rc.1",
     "magic-string": "^0.30.10"
   },
   "prettier": {
