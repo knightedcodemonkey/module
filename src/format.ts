@@ -5,9 +5,9 @@ import type { ParseResult } from '@babel/parser'
 import type { File } from '@babel/types'
 import type { FormatterOptions } from './types.js'
 
+import { identifier } from './formatters/identifier.js'
 import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
-import { expressionStatement } from './formatters/expressionStatement.js'
 
 const traverse = _traverse.default
 
@@ -19,11 +19,11 @@ export const format = (code: string, ast: ParseResult<File>, options: FormatterO
   const src = new MagicString(code)
 
   traverse(ast, {
+    Identifier(path) {
+      identifier(path, src, options)
+    },
     MetaProperty(path) {
       metaProperty(path, src, options)
-    },
-    ExpressionStatement(path) {
-      expressionStatement(path, src, options)
     },
     MemberExpression(path) {
       memberExpression(path, src, options)
