@@ -1,7 +1,7 @@
-import { resolve } from 'node:path'
+import { resolve, extname } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 
-import { specifier } from '@knighted/specifier'
+import { specifier, type Specifier } from '@knighted/specifier'
 
 import { parse } from './parse.js'
 import { format } from './format.js'
@@ -14,6 +14,26 @@ const defaultOptions = {
   specifier: undefined,
 } satisfies ModuleOptions
 
+type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
+const getLangFromExt = (filename: string): UpdateSrcLang => {
+  const ext = extname(filename)
+
+  if (/\.js$/.test(ext)) {
+    return 'js'
+  }
+
+  if (/\.ts$/.test(ext)) {
+    return 'ts'
+  }
+
+  if (ext === '.tsx') {
+    return 'tsx'
+  }
+
+  if (ext === '.jsx') {
+    return 'jsx'
+  }
+}
 const transform = async (filename: string, options: ModuleOptions = defaultOptions) => {
   const opts = { ...defaultOptions, ...options }
   const file = resolve(filename)
@@ -22,7 +42,7 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
   let source = format(code, ast, opts).toString()
 
   if (options.specifier) {
-    const { code, error } = await specifier.updateSrc(source, ({ value }) => {
+    const code = await specifier.updateSrc(source, getLangFromExt(filename), ({ value }) => {
       // Collapse any BinaryExpression or NewExpression to test for a relative specifier
       const collapsed = value.replace(/['"`+)\s]|new String\(/g, '')
       const relative = /^(?:\.|\.\.)\//
@@ -33,9 +53,7 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
       }
     })
 
-    if (code && !error) {
-      source = code
-    }
+    source = code
   }
 
   if (opts.out) {
