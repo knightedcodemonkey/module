@@ -1,5 +1,6 @@
 import MagicString from 'magic-string'
 import _traverse from '@babel/traverse'
+import { moduleType } from 'node-module-type'
 
 import type { ParseResult } from '@babel/parser'
 import type { File } from '@babel/types'
@@ -9,7 +10,15 @@ import { identifier } from './formatters/identifier.js'
 import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
 
-const traverse = _traverse.default
+/**
+ * Runtime hack to prevent issues with babel's default interop while dual building with tsc.
+ * @see https://github.com/babel/babel/discussions/13093#discussioncomment-12705927
+ * Temporary fix until I switch to oxc-parser.
+ */
+const type = moduleType()
+const traverse = (
+  typeof _traverse === 'function' || type === 'commonjs' ? _traverse : _traverse.default
+) as typeof _traverse.default
 
 /**
  * Note, there is no specific conversion for `import.meta.main` as it does not exist.
