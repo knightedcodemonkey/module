@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-alpha.7",
+  "version": "1.0.0-alpha.8",
   "description": "Converts module differences in source files between ES and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -78,7 +78,8 @@
     "@knighted/specifier": "^2.0.3",
     "@knighted/walk": "^1.0.0-rc.1",
     "magic-string": "^0.30.10",
-    "node-module-type": "^1.0.2"
+    "node-module-type": "^1.0.2",
+    "oxc-parser": "^0.66.0"
   },
   "prettier": {
     "arrowParens": "avoid",
