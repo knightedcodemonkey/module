@@ -1,39 +1,47 @@
 import MagicString from 'magic-string'
+import type { Node, IdentifierName } from 'oxc-parser'
 
-import type { NodePath } from '@babel/traverse'
-import type { Identifier } from '@babel/types'
-import type { FormatterOptions } from '../types.js'
+import type { FormatterOptions, ExportsMeta } from '../types.js'
+import { exportsRename } from '../utils.js'
 
-export const identifier = (nodePath: NodePath<Identifier>, src: MagicString, options: FormatterOptions) => {
-  if (options.type === 'module') {
-    const { node } = nodePath
-    const { start, end } = node
+type IdentifierArg = {
+  node: IdentifierName
+  ancestors: Node[]
+  code: MagicString
+  opts: FormatterOptions
+  meta: ExportsMeta
+}
 
-    if (typeof start === 'number' && typeof end === 'number' && node.type === 'Identifier') {
-      const { name } = node
-      const isMemberExpression = Boolean(nodePath.findParent(path => path.isMemberExpression()))
+export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg) => {
+  if (opts.type === 'module') {
+    const { start, end, name } = node
 
-      // CommonJS globals in expression/statement
-      switch (name) {
-        case 'module': {
-          if (!isMemberExpression) {
-            src.update(start, end, 'import.meta')
+    switch (name) {
+      case '__filename':
+        code.update(start, end, 'import.meta.url')
+        break
+      case '__dirname':
+        code.update(start, end, 'import.meta.dirname')
+        break
+      case 'exports':
+        const parent = ancestors[ancestors.length - 2]
+
+        if (
+          opts.importsExports &&
+          //parent &&
+          //ancestors.find(ancestor => ancestor.type === 'AssignmentExpression')
+          !['Property'].includes(parent.type)
+        ) {
+          if (parent.type === 'AssignmentExpression' && parent.left === node) {
+            // The code is reassigning `exports` to something else.
+
+            meta.hasExportsBeenReassigned = true
+            code.update(parent.left.start, parent.left.end, exportsRename)
+          } else {
+            code.update(start, end, exportsRename)
           }
-          break
         }
-        case 'exports': {
-          if (!isMemberExpression) {
-            src.update(start, end, '{}')
-          }
-          break
-        }
-        case '__filename':
-          src.update(start, end, 'import.meta.filename')
-          break
-        case '__dirname':
-          src.update(start, end, 'import.meta.dirname')
-          break
-      }
+        break
     }
   }
 }

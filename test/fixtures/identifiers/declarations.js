@@ -1,0 +1,64 @@
+var a = 'a'
+const b = 'b'
+let c = 'c'
+const d = (c = 'd')
+
+function foo() {
+  const e = 'e'
+
+  function inner() {
+    const z = 'z' + e
+  }
+
+  return inner()
+}
+
+const bar = function bar2(a) {
+  // A read should not be recorded for identifier `a` in the function body (shadowed by the parameter)
+  const baz = a
+  // However, `b` should be recorded as a read here
+  const qux = b
+
+  return baz + qux
+}
+
+// theta should only be declared once
+const theta = function theta() {
+  return 'theta'
+}
+theta()
+
+class f {
+  g = 'g'
+
+  constructor() {
+    this.h = 'h'
+  }
+
+  i() {
+    const j = 'j'
+
+    return j
+  }
+}
+
+// Top-level Block scoped
+{
+  const k = 'k'
+  var l = 'l'
+  class m {
+    n = 'n'
+  }
+}
+
+if (true) {
+  const o = 'o'
+  var p = 'p'
+  class q {
+    r = 'r'
+  }
+}
+
+// IIFE (b & c should not be recorded as a declaration or read)
+;(function b() {})()
+;(function c() {})()
