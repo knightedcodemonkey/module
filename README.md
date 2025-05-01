@@ -65,7 +65,10 @@ const { realpath } = require('node:fs/promises')
 const detectCalledFromCli = async path => {
   const realPath = await realpath(path)
 
-  if (require('node:url').pathToFileURL(__filename).toString() === pathToFileURL(realPath).href) {
+  if (
+    require('node:url').pathToFileURL(__filename).toString() ===
+    pathToFileURL(realPath).href
+  ) {
     console.log('invoked directly by node')
   }
 }

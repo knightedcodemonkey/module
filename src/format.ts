@@ -1,43 +1,149 @@
+import type { ParseResult } from 'oxc-parser'
+import type { FormatterOptions, ExportsMeta, IdentMeta } from './types.js'
 import MagicString from 'magic-string'
-import _traverse from '@babel/traverse'
-import { moduleType } from 'node-module-type'
-
-import type { ParseResult } from '@babel/parser'
-import type { File } from '@babel/types'
-import type { FormatterOptions } from './types.js'
+import { walk, ancestorWalk } from '@knighted/walk'
 
 import { identifier } from './formatters/identifier.js'
 import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
-
-/**
- * Runtime hack to prevent issues with babel's default interop while dual building with tsc.
- * @see https://github.com/babel/babel/discussions/13093#discussioncomment-12705927
- * Temporary fix until I switch to oxc-parser.
- */
-const type = moduleType()
-const traverse = (
-  typeof _traverse === 'function' || type === 'commonjs' ? _traverse : _traverse.default
-) as typeof _traverse.default
+import { expressionStatement } from './formatters/expressionStatement.js'
+import { assignmentExpression } from './formatters/assignmentExpression.js'
+import {
+  isIdentifierName,
+  isValidUrl,
+  exportsRename,
+  collectModuleIdentifiers,
+} from '../src/utils.js'
 
 /**
  * Note, there is no specific conversion for `import.meta.main` as it does not exist.
  * @see https://github.com/nodejs/node/issues/49440
  */
-export const format = (code: string, ast: ParseResult<File>, options: FormatterOptions) => {
-  const src = new MagicString(code)
+const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => {
+  const code = new MagicString(src)
+  const identifiers = new Map<string, IdentMeta>()
+  const exportsMeta = {
+    hasExportsBeenReassigned: false,
+    defaultExportValue: undefined,
+    hasDefaultExportBeenReassigned: false,
+    hasDefaultExportBeenAssigned: false,
+  } satisfies ExportsMeta
 
-  traverse(ast, {
-    Identifier(path) {
-      identifier(path, src, options)
-    },
-    MetaProperty(path) {
-      metaProperty(path, src, options)
-    },
-    MemberExpression(path) {
-      memberExpression(path, src, options)
+  if (opts.type === 'module' && opts.importsExports) {
+    /**
+     * Rename `exports` to `__exports` in the global scope.
+     * Collect all identifiers in the global/module scope.
+     */
+    code.prepend(`let ${exportsRename} = {};\n`)
+    await collectModuleIdentifiers(ast.program, identifiers)
+  }
+
+  await ancestorWalk(ast.program, {
+    async enter(node, ancestors) {
+      const parent = ancestors[ancestors.length - 2] ?? null
+
+      if (
+        node.type === 'FunctionDeclaration' ||
+        node.type === 'FunctionExpression' ||
+        node.type === 'ArrowFunctionExpression'
+      ) {
+        const skipped = ['__filename', '__dirname', 'exports']
+        const skippedParams = node.params.filter(
+          param => param.type === 'Identifier' && skipped.includes(param.name),
+        )
+        const skippedFuncIdentifier =
+          node.id?.type === 'Identifier' && skipped.includes(node.id.name)
+
+        if (skippedParams.length || skippedFuncIdentifier) {
+          this.skip()
+        }
+      }
+
+      /**
+       * Check for assignment to `import.meta.url`.
+       */
+      if (
+        node.type === 'AssignmentExpression' &&
+        node.left.type === 'MemberExpression' &&
+        node.left.object.type === 'MetaProperty' &&
+        node.left.property.type === 'Identifier' &&
+        node.left.property.name === 'url'
+      ) {
+        if (node.right.type === 'Literal' && typeof node.right.value === 'string') {
+          if (!isValidUrl(node.right.value)) {
+            const rhs = code.snip(node.right.start, node.right.end).toString()
+            const assignment = code.snip(node.start, node.end).toString()
+
+            code.update(
+              node.start,
+              node.end,
+              `/* Invalid assignment: ${rhs} is not a URL. ${assignment} */`,
+            )
+            this.skip()
+          }
+        }
+      }
+
+      /**
+       * Skip module scope CJS globals when they are object properties.
+       * Ignoring `exports` here.
+       */
+      if (
+        node.type === 'MemberExpression' &&
+        node.property.type === 'Identifier' &&
+        ['__filename', '__dirname'].includes(node.property.name)
+      ) {
+        this.skip()
+      }
+
+      /**
+       * Check for bare `module.exports` expressions.
+       */
+      if (
+        node.type === 'MemberExpression' &&
+        node.object.type === 'Identifier' &&
+        node.object.name === 'module' &&
+        node.property.type === 'Identifier' &&
+        node.property.name === 'exports' &&
+        parent?.type === 'ExpressionStatement'
+      ) {
+        if (opts.type === 'module') {
+          code.update(node.start, node.end, ';')
+          // Prevent parsing the `exports` identifier again.
+          this.skip()
+        }
+      }
+
+      /**
+       * Format `module.exports` and `exports` assignments.
+       */
+      if (node.type === 'AssignmentExpression') {
+        await assignmentExpression({
+          node,
+          parent,
+          code,
+          opts,
+          meta: exportsMeta,
+        })
+      }
+
+      if (node.type === 'MetaProperty') {
+        metaProperty(node, parent, code, opts)
+      }
+
+      if (isIdentifierName(node)) {
+        identifier({
+          node,
+          ancestors,
+          code,
+          opts,
+          meta: exportsMeta,
+        })
+      }
     },
   })
 
-  return src
+  return code.toString()
 }
+
+export { format }
