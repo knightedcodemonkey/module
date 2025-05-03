@@ -50,8 +50,8 @@ class Epsilon {
     this.a = a
   }
 
-  // Read a
   epsilon1() {
+    // Read a
     return a
   }
 }
@@ -72,12 +72,11 @@ zeta()
   p
   // Read a
 })(a)
-/*
+
 function eta() {
   class a {
     constructor() {
       const a = () => {
-        // Read a
         return a
       }
       this.a = a()
@@ -86,11 +85,9 @@ function eta() {
 
   return new a()
 }
-console.log(eta())
-*/
+eta()
 
 const theta = function a() {
-  // Read a
   const theta1 = a
 
   return theta1
@@ -98,7 +95,6 @@ const theta = function a() {
 theta()
 
 const iota = function () {
-  /* This gets ignored becaue the VaribleDeclaration keeps the `a` in scope for iota */
   const a = () => {
     return 'inner a'
   }
@@ -113,11 +109,57 @@ const kappa = function () {
     return a
   }
 
-  /* Here the scope for function a is removed, so not inscope, but referencing inner scope still */
-  /* Might need to record the scope types and find the nearest BlockScope to record identifers and check if they are in scope */
   return a()
 }
 kappa()
+
+class Lambda {
+  a = 'aa'
+
+  static a
+
+  static {
+    this.a = 'static a'
+  }
+
+  get a() {
+    return this.a
+  }
+
+  lambda1() {
+    // Read a
+    return a
+  }
+}
+new Lambda('a')
+
+class Mu {
+  a = 'aa'
+
+  constructor(a) {
+    this.a = a
+  }
+
+  mu1() {
+    // Read a
+    return a
+  }
+}
+new Mu('passed a')
+
+class Nu {
+  a = 'aa'
+
+  constructor() {
+    // Read a (also shadows the class field)
+    this.a = a
+  }
+
+  nu1() {
+    return this.a
+  }
+}
+new Nu('passed a')
 
 // Read a
 export default a

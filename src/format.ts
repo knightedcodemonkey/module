@@ -21,13 +21,13 @@ import {
  */
 const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => {
   const code = new MagicString(src)
-  const identifiers = new Map<string, IdentMeta>()
   const exportsMeta = {
     hasExportsBeenReassigned: false,
     defaultExportValue: undefined,
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
+  let identifiers = new Map<string, IdentMeta>()
 
   if (opts.type === 'module' && opts.importsExports) {
     /**
@@ -35,7 +35,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
      * Collect all identifiers in the global/module scope.
      */
     code.prepend(`let ${exportsRename} = {};\n`)
-    await collectModuleIdentifiers(ast.program, identifiers)
+    identifiers = await collectModuleIdentifiers(ast.program)
   }
 
   await ancestorWalk(ast.program, {
