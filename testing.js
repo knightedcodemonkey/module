@@ -1,12 +1,16 @@
-a()
-console.log(c)
-console.log(d)
-const foo = 'bar'
-function a() {
-  b()
-  function b() {
-    console.log('b')
+const a = 'outer a'
+class Nu {
+  a = 'aa'
+
+  constructor() {
+    this.a = a
   }
-  var d = 'd'
+
+  nu1() {
+    return this.a
+  }
 }
-var c = 'c'
+const A = new Nu('passed a')
+
+console.log(A.nu1()) // outer a
+console.log(A.a) // passed a

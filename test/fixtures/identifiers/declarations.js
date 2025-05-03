@@ -28,6 +28,14 @@ const theta = function theta() {
 }
 theta()
 
+const iota = function a() {
+  // iota should only be declared once
+  const iota = function () {
+    return 'iota'
+  }
+  return iota()
+}
+
 class f {
   g = 'g'
 
@@ -61,4 +69,6 @@ if (true) {
 
 // IIFE (b & c should not be recorded as a declaration or read)
 ;(function b() {})()
-;(function c() {})()
+
+// prettier-ignore
+;(function c() {}())

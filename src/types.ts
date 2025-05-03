@@ -1,4 +1,4 @@
-import type { Node, IdentifierName } from 'oxc-parser'
+import type { Node, Span } from 'oxc-parser'
 export type ModuleOptions = {
   /* What module system to convert to. */
   type: 'module' | 'commonjs'
@@ -9,6 +9,8 @@ export type ModuleOptions = {
   /* What filepath to write the transformed source to. */
   out?: string
 }
+
+type SpannedNode = Node & Span
 
 export type ExportsMeta = {
   hasExportsBeenReassigned: boolean
@@ -21,10 +23,9 @@ export type IdentMeta = {
   /*
     `var` can be redeclared in the same scope.
   */
-  declare: Node[]
-  read: Node[]
+  declare: SpannedNode[]
+  read: SpannedNode[]
 }
-export type Identifiers = Map<string, IdentMeta>
 
 export type FormatterOptions = Omit<ModuleOptions, 'out'> &
   Required<Pick<ModuleOptions, 'type'>>

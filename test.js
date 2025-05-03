@@ -1,3 +1,8 @@
-exports.foo = 'bar'
-exports.bar = 'foo'
-export {}
+const kappa = function () {
+  function a() {
+    const a = 'inner a'
+    return a
+  }
+
+  return a()
+}
