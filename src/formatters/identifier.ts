@@ -24,21 +24,23 @@ export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg)
         code.update(start, end, 'import.meta.dirname')
         break
       case 'exports':
-        const parent = ancestors[ancestors.length - 2]
+        {
+          const parent = ancestors[ancestors.length - 2]
 
-        if (
-          opts.importsExports &&
-          //parent &&
-          //ancestors.find(ancestor => ancestor.type === 'AssignmentExpression')
-          !['Property'].includes(parent.type)
-        ) {
-          if (parent.type === 'AssignmentExpression' && parent.left === node) {
-            // The code is reassigning `exports` to something else.
+          if (
+            opts.importsExports &&
+            //parent &&
+            //ancestors.find(ancestor => ancestor.type === 'AssignmentExpression')
+            !['Property'].includes(parent.type)
+          ) {
+            if (parent.type === 'AssignmentExpression' && parent.left === node) {
+              // The code is reassigning `exports` to something else.
 
-            meta.hasExportsBeenReassigned = true
-            code.update(parent.left.start, parent.left.end, exportsRename)
-          } else {
-            code.update(start, end, exportsRename)
+              meta.hasExportsBeenReassigned = true
+              //code.update(parent.left.start, parent.left.end, exportsRename)
+            } else {
+              //code.update(start, end, exportsRename)
+            }
           }
         }
         break

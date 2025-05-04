@@ -73,20 +73,26 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms exports', async t => {
-    const result = await transform(join(fixtures, 'exports.cjs'), {
+  it('transforms exports', async t => {
+    const fixturePath = join(fixtures, 'exports.cjs')
+    const result = await transform(fixturePath, {
       type: 'module',
       importsExports: true,
     })
     const outFile = join(fixtures, 'exports.mjs')
+    const { status: statusIn } = spawnSync('node', [fixturePath], {
+      stdio: 'inherit',
+    })
 
     t.after(() => {
       //rm(outFile, { force: true })
     })
+
+    assert.equal(statusIn, 0)
     await writeFile(outFile, result)
 
-    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
-    assert.equal(status, 0)
+    const { status: statusOut } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(statusOut, 0)
   })
 
   it.skip('transforms import.meta', async t => {

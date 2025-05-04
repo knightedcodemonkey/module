@@ -59,7 +59,7 @@ class f {
   }
 }
 
-if (true) {
+if (b) {
   const o = 'o'
   var p = 'p'
   class q {
@@ -67,8 +67,12 @@ if (true) {
   }
 }
 
-// IIFE (b & c should not be recorded as a declaration or read)
-;(function b() {})()
+let s,
+  t = 't',
+  v = 'v'
 
 // prettier-ignore
 ;(function c() {}())
+
+;
+;(function b() {})()

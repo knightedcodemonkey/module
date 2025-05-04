@@ -9,6 +9,9 @@ Node.js utility for transforming a JavaScript or TypeScript file from an ES modu
 - ES module ➡️ CommonJS
 - CommonJS ➡️ ES module
 
+> [!IMPORTANT]  
+> All parsing logic is applied under the assumption the code is in [strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode) which [modules run under by default](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#other_differences_between_modules_and_classic_scripts).
+
 By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs), but it also accepts options that allow:
 
 - Converting `import`/`export` to `require`/`exports`

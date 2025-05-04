@@ -10,7 +10,7 @@ export type ModuleOptions = {
   out?: string
 }
 
-type SpannedNode = Node & Span
+export type SpannedNode = Node & Span
 
 export type ExportsMeta = {
   hasExportsBeenReassigned: boolean
