@@ -3,8 +3,8 @@ exports
 const filename = exports
 const other = exports.other ?? {}
 const a = [exports, 'foo']
-const obj = new String(exports + 'foo')
-const thing = {}
+const string = new String(exports + 'foo')
+const thing = { exports: 'foo' }
 
 thing.exports = 'boo'
 
@@ -14,6 +14,17 @@ if (exports === process.argv[1]) {
 }
 
 exports + 'foo'
+
+class Foo {
+  exports = 'foo'
+
+  constructor() {
+    this.exports = 'foo'
+  }
+
+  get exports() {}
+}
+new Foo().exports
 
 function bar(exports) {
   const fn = exports
@@ -39,7 +50,7 @@ baz.apply(null, [exports, a])
 
 exports = 'foo'
 exports = { foo: 'bar', bar: exports }
-exports.obj = obj
+exports.obj = string
 exports.foo = {}
 exports.foo.exports = {}
 exports.foo.exports.bar = 'baz'

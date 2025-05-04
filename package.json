@@ -23,6 +23,7 @@
   },
   "engineStrict": true,
   "scripts": {
+    "check-types": "tsc --noEmit",
     "prettier": "prettier -w .",
     "lint": "eslint --ignore-pattern dist .",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
@@ -72,11 +73,11 @@
     "typescript-eslint": "^8.29.0"
   },
   "dependencies": {
-    "@knighted/specifier": "^2.0.1",
+    "@knighted/specifier": "^2.0.5",
     "@knighted/walk": "^1.0.0-rc.1",
     "magic-string": "^0.30.17",
     "node-module-type": "^1.0.2",
-    "oxc-parser": "^0.67.0"
+    "oxc-parser": "^0.68.0"
   },
   "prettier": {
     "arrowParens": "avoid",

@@ -1,30 +1,11 @@
-{
-  const foo = 'foo'
-  var bar = 'bar'
-}
+const obj = { exports: 'foo' }
+class Foo {
+  exports = 'foo'
 
-if (true) {
-  const foo = 'foo'
-  var qux = 'qux'
-}
+  constructor() {
+    this.exports = 'foo'
+  }
 
-let i = 2
-while (i > 0) {
-  const foo = 'foo'
-  var loop = 'loop'
-  i--
+  get exports() {}
 }
-
-function foo() {
-  const foo = 'foo'
-  var baz = 'baz'
-}
-
-const bark = () => {
-  const bar = 'bar'
-  var boo = 'boo'
-}
-
-console.log(bar) // 'foo'
-console.log(qux) // 'qux'
-console.log(loop)
+new Foo().exports

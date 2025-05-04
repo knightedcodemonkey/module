@@ -1,20 +1,20 @@
 let __exports = {}
-__exports
+exports
 
-const filename = __exports
-const other = __exports.other ?? {}
-const a = [__exports, 'foo']
-const obj = new String(__exports + 'foo')
+const filename = exports
+const other = exports.other ?? {}
+const a = [exports, 'foo']
+const obj = new String(exports + 'foo')
 const thing = {}
 
-thing.__exports = 'boo'
+thing.exports = 'boo'
 
-if (__exports === process.argv[1]) {
-  thing.__exports = filename
-  other.thing.__exports = 'test'
+if (exports === process.argv[1]) {
+  thing.exports = filename
+  other.thing.exports = 'test'
 }
 
-__exports + 'foo'
+exports + 'foo'
 
 function bar(exports) {
   const fn = exports
@@ -28,18 +28,19 @@ const foo = exports => {
 }
 ;(arg => {
   return arg
-})(__exports)
+})(exports)
 const baz = function exports(arg, ...rest) {
   return rest
 }
 
-foo(__exports)
-foo(`${__exports}foo`)
-bar.call(this, __exports)
-baz.apply(null, [__exports, a])
+foo(exports)
+foo(`${exports}foo`)
+bar.call(this, exports)
+baz.apply(null, [exports, a])
 
-__exports = 'foo'
-__exports = { foo: 'bar', bar: exports }
-__exports.foo = {}
-__exports.foo.__exports = {}
-__exports.foo.__exports.bar = 'baz'
+exports = 'foo'
+exports = { foo: 'bar', bar: exports }
+exports.obj = obj
+exports.foo = {}
+exports.foo.exports = {}
+exports.foo.exports.bar = 'baz'
