@@ -27,5 +27,12 @@ export type IdentMeta = {
   read: SpannedNode[]
 }
 
+export type Scope = {
+  type: string
+  name: string
+  node: Node
+  idents: Set<string>
+}
+
 export type FormatterOptions = Omit<ModuleOptions, 'out'> &
   Required<Pick<ModuleOptions, 'type'>>
