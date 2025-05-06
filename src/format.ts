@@ -27,7 +27,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
-  let identifiers = new Map<string, IdentMeta>()
+  let identifiers = await collectModuleIdentifiers(ast.program)
 
   if (opts.type === 'module' && opts.importsExports) {
     /**
@@ -35,7 +35,6 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
      * Collect all identifiers in the global/module scope.
      */
     code.prepend(`let ${exportsRename} = {};\n`)
-    identifiers = await collectModuleIdentifiers(ast.program)
   }
 
   await ancestorWalk(ast.program, {

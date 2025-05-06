@@ -9,11 +9,24 @@ const scopeNodes = [
   'ClassBody',
   'BlockStatement',
 ]
+
 const identifier = {
   isGlobalScope(ancestors: Node[]) {
     return ancestors.every(ancestor => {
       return !scopeNodes.includes(ancestor.type)
     })
+  },
+
+  isMemberExpressionRoot(ancestors: Node[]) {
+    const node = ancestors[ancestors.length - 1]
+    const parent = ancestors[ancestors.length - 2]
+    const grandParent = ancestors[ancestors.length - 3]
+
+    return (
+      parent.type === 'MemberExpression' &&
+      parent.object === node &&
+      grandParent.type !== 'MemberExpression'
+    )
   },
 
   isDeclaration(ancestors: Node[]) {
