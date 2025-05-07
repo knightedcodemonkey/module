@@ -243,6 +243,7 @@ export {
   getLangFromExt,
   isIdentifierName,
   isValidUrl,
+  collectScopeIdentifiers,
   collectModuleIdentifiers,
   exportsRename,
   requireMainRgx,

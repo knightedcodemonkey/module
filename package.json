@@ -74,10 +74,10 @@
   },
   "dependencies": {
     "@knighted/specifier": "^2.0.5",
-    "@knighted/walk": "^1.0.0-rc.1",
+    "@knighted/walk": "^1.0.0-rc.2",
     "magic-string": "^0.30.17",
     "node-module-type": "^1.0.2",
-    "oxc-parser": "^0.68.0"
+    "oxc-parser": "^0.68.1"
   },
   "prettier": {
     "arrowParens": "avoid",
