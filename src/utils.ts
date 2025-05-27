@@ -1,11 +1,12 @@
 import { extname } from 'node:path'
 import { ancestorWalk } from '@knighted/walk'
 
-import type { Node, IdentifierName } from 'oxc-parser'
+import type { Node } from 'oxc-parser'
 import type { Specifier } from '@knighted/specifier'
 
 import type { IdentMeta, SpannedNode, Scope } from './types.js'
-import { identifier, scopeNodes } from './helpers.js'
+import { scopes as scopeNodes } from './helpers/scope.js'
+import { identifier } from './helpers/identifier.js'
 
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
@@ -26,9 +27,6 @@ const getLangFromExt = (filename: string): UpdateSrcLang => {
   if (ext === '.jsx') {
     return 'jsx'
   }
-}
-const isIdentifierName = (node: Node): node is IdentifierName => {
-  return node.type === 'Identifier' && typeof node.name === 'string'
 }
 const isValidUrl = (url: string) => {
   try {
@@ -72,7 +70,7 @@ const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
 
             return param
           })
-          .filter(isIdentifierName)
+          .filter(identifier.isNamed)
           .forEach(param => {
             scope.idents.add(param.name)
           })
@@ -112,6 +110,10 @@ const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
         scopes.push({ node, name: className, type: 'Class', idents: new Set() })
       }
       break
+    case 'ClassExpression':
+      {
+      }
+      break
     case 'VariableDeclaration':
       if (scopes.length > 0) {
         const scope = scopes[scopes.length - 1]
@@ -137,7 +139,7 @@ const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
  * - ClassDeclaration
  * - FunctionDeclaration
  *
- * Special case handling for var inside top-level BlockStatement
+ * Special case handling for var inside BlockStatement
  * which are also valid module scope identifiers.
  */
 const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => {
@@ -177,14 +179,14 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
         }
 
         if (isDeclaration) {
-          const isGlobalScope = identifier.isGlobalScope(ancestors)
+          const isModuleScope = identifier.isModuleScope(ancestors)
           const isClassOrFuncDeclaration =
             identifier.isClassOrFuncDeclarationId(ancestors)
           const isVarDeclarationInGlobalScope =
             identifier.isVarDeclarationInGlobalScope(ancestors)
 
           if (
-            isGlobalScope ||
+            isModuleScope ||
             isClassOrFuncDeclaration ||
             isVarDeclarationInGlobalScope
           ) {
@@ -241,7 +243,6 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
 
 export {
   getLangFromExt,
-  isIdentifierName,
   isValidUrl,
   collectScopeIdentifiers,
   collectModuleIdentifiers,

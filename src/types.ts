@@ -1,4 +1,12 @@
-import type { Node, Span } from 'oxc-parser'
+import type {
+  Node,
+  Span,
+  IdentifierName,
+  IdentifierReference,
+  BindingIdentifier,
+  LabelIdentifier,
+  TSIndexSignatureName,
+} from 'oxc-parser'
 export type ModuleOptions = {
   /* What module system to convert to. */
   type: 'module' | 'commonjs'
@@ -36,3 +44,10 @@ export type Scope = {
 
 export type FormatterOptions = Omit<ModuleOptions, 'out'> &
   Required<Pick<ModuleOptions, 'type'>>
+
+export type Identifier =
+  | IdentifierName
+  | IdentifierReference
+  | BindingIdentifier
+  | LabelIdentifier
+  | TSIndexSignatureName

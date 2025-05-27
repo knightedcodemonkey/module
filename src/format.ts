@@ -8,12 +8,8 @@ import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
 import { expressionStatement } from './formatters/expressionStatement.js'
 import { assignmentExpression } from './formatters/assignmentExpression.js'
-import {
-  isIdentifierName,
-  isValidUrl,
-  exportsRename,
-  collectModuleIdentifiers,
-} from '../src/utils.js'
+import { isValidUrl, exportsRename, collectModuleIdentifiers } from '../src/utils.js'
+import { isIdentifierName } from '../src/helpers.js'
 
 /**
  * Note, there is no specific conversion for `import.meta.main` as it does not exist.

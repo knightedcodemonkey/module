@@ -18,6 +18,13 @@
     },
     "./package.json": "./package.json"
   },
+  "imports": {
+    "#parse": "./src/parse.js",
+    "#format": "./src/format.js",
+    "#utils": "./src/utils.js",
+    "#helpers/*": "./src/helpers/*.js",
+    "#formatters/*": "./src/formatters/*.js"
+  },
   "engines": {
     "node": ">=20.11.0"
   },
@@ -73,11 +80,11 @@
     "typescript-eslint": "^8.29.0"
   },
   "dependencies": {
-    "@knighted/specifier": "^2.0.5",
+    "@knighted/specifier": "^2.0.6",
     "@knighted/walk": "^1.0.0-rc.2",
     "magic-string": "^0.30.17",
     "node-module-type": "^1.0.2",
-    "oxc-parser": "^0.68.1"
+    "oxc-parser": "^0.71.0"
   },
   "prettier": {
     "arrowParens": "avoid",

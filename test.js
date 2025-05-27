@@ -1,1 +1,1 @@
-export default 'aa'
+export const x = 'x'
