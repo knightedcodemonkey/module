@@ -37,7 +37,7 @@ export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg)
             }
 
             if (
-              //ident.isGlobalScope(ancestors) &&
+              //ident.isModuleScope(ancestors) &&
               !ident.isFunctionExpressionId(ancestors) &&
               !ident.isExportSpecifierAlias(ancestors) &&
               !ident.isClassPropertyKey(ancestors) &&
