@@ -5,7 +5,8 @@
       "@babel/preset-env",
       {
         "modules": false
-      }
+      },
+      "module-build"
     ],
     "@babel/preset-typescript"
   ]
