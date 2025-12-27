@@ -32,7 +32,10 @@
   "scripts": {
     "check-types": "tsc -p tsconfig.test.json",
     "prettier": "prettier -w .",
+    "prettier:check": "prettier -c .",
     "lint": "oxlint --config oxlint.json .",
+    "lint-staged": "lint-staged",
+    "prepare": "husky install",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
@@ -67,6 +70,8 @@
     "@types/node": "^22.13.17",
     "babel-dual-package": "^1.2.3",
     "c8": "^10.1.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "oxlint": "^1.35.0",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
@@ -85,5 +90,12 @@
     "printWidth": 90,
     "semi": false,
     "singleQuote": true
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx,jsx,cjs,mjs}": [
+      "prettier -c",
+      "oxlint --config oxlint.json"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": "prettier -c"
   }
 }
