@@ -39,19 +39,10 @@ export const memberExpression = (
       // CommonJS properties of `require`
       switch (name) {
         case 'main':
-          /**
-           * Node.js team still quibbling over import.meta.main ¯\_(ツ)_/¯
-           * @see https://github.com/nodejs/node/pull/32223
-           */
-          if (parent?.type === 'ExpressionStatement') {
-            // This is a standalone expression so remove it to not cause run-time errors.
-            src.remove(start, end)
-          }
-          /**
-           * Transform require.main === module.
-           */
           if (parent?.type === 'BinaryExpression') {
+            return
           }
+          src.update(start, end, 'import.meta.main')
           break
         case 'resolve':
           src.update(start, end, 'import.meta.resolve')
@@ -63,6 +54,17 @@ export const memberExpression = (
            */
           src.update(start, end, '{}')
           break
+      }
+    }
+
+    if (
+      node.object.type === 'Identifier' &&
+      node.property.type === 'Identifier' &&
+      node.object.name === 'module' &&
+      node.property.name === 'require'
+    ) {
+      if (!shadowed?.has('module')) {
+        src.update(node.start, node.end, 'require')
       }
     }
   }

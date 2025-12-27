@@ -30,20 +30,38 @@ const exportAssignment = (
 const defaultInteropName = '__interopDefault'
 const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModule ? mod.default : mod);\n`
 
+const isRequireCallee = (callee: any, shadowed: Set<string>) => {
+  if (
+    callee.type === 'Identifier' &&
+    callee.name === 'require' &&
+    !shadowed.has('require')
+  ) {
+    return true
+  }
+
+  if (
+    callee.type === 'MemberExpression' &&
+    callee.object.type === 'Identifier' &&
+    callee.object.name === 'module' &&
+    !shadowed.has('module') &&
+    callee.property.type === 'Identifier' &&
+    callee.property.name === 'require'
+  ) {
+    return true
+  }
+
+  return false
+}
+
 const isStaticRequire = (node: any, shadowed: Set<string>) =>
   node.type === 'CallExpression' &&
-  node.callee.type === 'Identifier' &&
-  node.callee.name === 'require' &&
-  !shadowed.has('require') &&
+  isRequireCallee(node.callee, shadowed) &&
   node.arguments.length === 1 &&
   node.arguments[0].type === 'Literal' &&
   typeof node.arguments[0].value === 'string'
 
 const isRequireCall = (node: any, shadowed: Set<string>) =>
-  node.type === 'CallExpression' &&
-  node.callee.type === 'Identifier' &&
-  node.callee.name === 'require' &&
-  !shadowed.has('require')
+  node.type === 'CallExpression' && isRequireCallee(node.callee, shadowed)
 
 type RequireTransform = {
   start: number
@@ -62,34 +80,38 @@ const lowerCjsRequireToImports = (
   let needsCreateRequire = false
 
   for (const stmt of program.body as any[]) {
-    if (stmt.type === 'VariableDeclaration' && stmt.declarations.length === 1) {
-      const decl = stmt.declarations[0]
-      const init = decl.init
+    if (stmt.type === 'VariableDeclaration') {
+      const decls = stmt.declarations
+      const allStatic =
+        decls.length > 0 &&
+        decls.every((decl: any) => decl.init && isStaticRequire(decl.init, shadowed))
 
-      if (init && isStaticRequire(init, shadowed)) {
-        const source = code.slice(init.arguments[0].start, init.arguments[0].end)
+      if (allStatic) {
+        for (const decl of decls) {
+          const init = decl.init!
+          const source = code.slice(init.arguments[0].start, init.arguments[0].end)
 
-        if (decl.id.type === 'Identifier') {
-          imports.push(`import * as ${decl.id.name} from ${source};\n`)
-          transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
-        } else if (decl.id.type === 'ObjectPattern') {
-          const ns = `__cjsImport${nsIndex++}`
-          const pattern = code.slice(decl.id.start, decl.id.end)
-          imports.push(`import * as ${ns} from ${source};\n`)
-          transforms.push({
-            start: stmt.start,
-            end: stmt.end,
-            code: `const ${pattern} = ${ns};\n`,
-          })
-        } else {
-          needsCreateRequire = true
+          if (decl.id.type === 'Identifier') {
+            imports.push(`import * as ${decl.id.name} from ${source};\n`)
+          } else if (decl.id.type === 'ObjectPattern') {
+            const ns = `__cjsImport${nsIndex++}`
+            const pattern = code.slice(decl.id.start, decl.id.end)
+            imports.push(`import * as ${ns} from ${source};\n`)
+            imports.push(`const ${pattern} = ${ns};\n`)
+          } else {
+            needsCreateRequire = true
+          }
         }
 
+        transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
         continue
       }
 
-      if (init && isRequireCall(init, shadowed)) {
-        needsCreateRequire = true
+      for (const decl of decls) {
+        const init = decl.init
+        if (init && isRequireCall(init, shadowed)) {
+          needsCreateRequire = true
+        }
       }
     }
 
@@ -111,6 +133,15 @@ const lowerCjsRequireToImports = (
 
   return { transforms, imports, needsCreateRequire }
 }
+
+const isRequireMainMember = (node: any, shadowed: Set<string>) =>
+  node &&
+  node.type === 'MemberExpression' &&
+  node.object.type === 'Identifier' &&
+  node.object.name === 'require' &&
+  !shadowed.has('require') &&
+  node.property.type === 'Identifier' &&
+  node.property.name === 'main'
 
 const hasTopLevelAwait = (program: any) => {
   let found = false
@@ -455,6 +486,34 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   await ancestorWalk(ast.program, {
     async enter(node, ancestors) {
       const parent = ancestors[ancestors.length - 2] ?? null
+
+      if (shouldRaiseEsm && node.type === 'BinaryExpression') {
+        const op = node.operator
+        const isEquality = op === '===' || op === '==' || op === '!==' || op === '!='
+
+        if (isEquality) {
+          const leftMain = isRequireMainMember(node.left, shadowedBindings)
+          const rightMain = isRequireMainMember(node.right, shadowedBindings)
+          const leftModule =
+            node.left.type === 'Identifier' &&
+            node.left.name === 'module' &&
+            !shadowedBindings.has('module')
+          const rightModule =
+            node.right.type === 'Identifier' &&
+            node.right.name === 'module' &&
+            !shadowedBindings.has('module')
+
+          if ((leftMain && rightModule) || (rightMain && leftModule)) {
+            const negate = op === '!==' || op === '!='
+            code.update(
+              node.start,
+              node.end,
+              negate ? '!import.meta.main' : 'import.meta.main',
+            )
+            return
+          }
+        }
+      }
 
       if (
         shouldRaiseEsm &&
