@@ -77,7 +77,7 @@
     "@knighted/walk": "^1.0.0-rc.2",
     "magic-string": "^0.30.21",
     "node-module-type": "^1.0.4",
-    "oxc-parser": "^0.71.0"
+    "oxc-parser": "^0.105.0"
   },
   "prettier": {
     "arrowParens": "avoid",
