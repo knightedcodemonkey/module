@@ -1,5 +1,5 @@
 {
-  "targets": "node >= 20.11.0",
+  "targets": "node >= 22.21.1",
   "presets": [
     [
       "@babel/preset-env",

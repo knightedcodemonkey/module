@@ -139,7 +139,6 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 
 ## Roadmap
 
-- Remove `@knighted/specifier` and avoid double parsing.
 - Emit source maps and clearer diagnostics for transform choices.
 - Broaden fixtures covering live-binding and top-level await edge cases across Node versions.
 - Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 
-import { specifier } from '@knighted/specifier'
+import { specifier } from './specifier.js'
 
 import { parse } from '#parse'
 import { format } from '#format'

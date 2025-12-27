@@ -1,9 +1,8 @@
 import { extname } from 'node:path'
-import type { Specifier } from '@knighted/specifier'
+import type { ParserOptions } from 'oxc-parser'
 
 // Determine language from filename extension for specifier rewrite.
-type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
-const getLangFromExt = (filename: string): UpdateSrcLang => {
+const getLangFromExt = (filename: string): ParserOptions['lang'] | undefined => {
   const ext = extname(filename).toLowerCase()
 
   if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
