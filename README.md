@@ -9,6 +9,12 @@ Node.js utility for transforming a JavaScript or TypeScript file from an ES modu
 - ES module ➡️ CommonJS
 - CommonJS ➡️ ES module
 
+Highlights
+
+- Defaults to safe CommonJS output: strict live bindings, import.meta shims, and specifier preservation.
+- Opt into stricter/looser behaviors: live binding enforcement, import.meta.main gating, and top-level await strategies.
+- Can optionally rewrite relative specifiers and write transformed output to disk.
+
 > [!IMPORTANT]  
 > All parsing logic is applied under the assumption the code is in [strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode) which [modules run under by default](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#other_differences_between_modules_and_classic_scripts).
 
@@ -18,9 +24,15 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 
 - Node >= 20.11.0
 
+## Install
+
+```bash
+npm install @knighted/module
+```
+
 ## Example
 
-Given an ES module
+Given an ES module:
 
 **file.js**
 
@@ -40,7 +52,7 @@ const detectCalledFromCli = async path => {
 detectCalledFromCli(argv[1])
 ```
 
-You can transform it to the equivalent CommonJS module
+Transform it to CommonJS:
 
 ```js
 import { transform } from '@knighted/module'
@@ -51,7 +63,7 @@ await transform('./file.js', {
 })
 ```
 
-Which produces
+Which produces:
 
 **file.cjs**
 
@@ -99,6 +111,7 @@ type ModuleOptions = {
     | ((value: string) => string | null | undefined)
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
+  importMetaMain?: 'shim' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
@@ -107,7 +120,24 @@ type ModuleOptions = {
 }
 ```
 
+Behavior notes (defaults in parentheses)
+
+- `target` (`commonjs`): output module system.
+- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass.
+- `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
+- `dirFilename` (`inject`): inject `__dirname`/`__filename`, preserve existing, or throw.
+- `importMeta` (`shim`): rewrite `import.meta.*` to CommonJS equivalents.
+- `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
+- `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
+- `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback.
+- `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
+- `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
+- `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
+
+See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling.
+
 ## Roadmap
 
 - Remove `@knighted/specifier` and avoid double parsing.
-- Flesh out live-binding and top-level await handling.
+- Emit source maps and clearer diagnostics for transform choices.
+- Broaden fixtures covering live-binding and top-level await edge cases across Node versions.
