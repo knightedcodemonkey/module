@@ -137,6 +137,9 @@ Behavior notes (defaults in parentheses)
 
 See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling. For CommonJS to ESM lowering details, read [docs/cjs-to-esm.md](docs/cjs-to-esm.md).
 
+> [!NOTE]
+> Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
+
 ## Roadmap
 
 - Emit source maps and clearer diagnostics for transform choices.
