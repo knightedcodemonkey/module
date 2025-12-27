@@ -1,0 +1,1 @@
+eval('exports.ok = true')
