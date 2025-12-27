@@ -41,6 +41,14 @@ export type ExportsMeta = {
   defaultExportValue: unknown
 }
 
+export type CjsExport = {
+  key: string
+  writes: SpannedNode[]
+  fromIdentifier?: string
+  via: Set<'exports' | 'module.exports'>
+  reassignments: SpannedNode[]
+}
+
 export type IdentMeta = {
   /*
     `var` can be redeclared in the same scope.

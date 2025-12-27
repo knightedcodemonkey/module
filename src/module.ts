@@ -5,7 +5,7 @@ import { specifier } from '@knighted/specifier'
 
 import { parse } from './parse.js'
 import { format } from './format.js'
-import { getLangFromExt } from './utils.js'
+import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions } from './types.js'
 
 const defaultOptions = {

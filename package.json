@@ -21,7 +21,7 @@
   "imports": {
     "#parse": "./src/parse.js",
     "#format": "./src/format.js",
-    "#utils": "./src/utils.js",
+    "#utils/*": "./src/utils/*.js",
     "#walk": "./src/walk.js",
     "#helpers/*": "./src/helpers/*.js",
     "#formatters/*": "./src/formatters/*.js"
