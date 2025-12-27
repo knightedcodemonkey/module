@@ -155,6 +155,14 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
           const isVarDeclarationInGlobalScope =
             identifier.isVarDeclarationInGlobalScope(ancestors)
 
+          const parent = ancestors[ancestors.length - 2]
+          const grandParent = ancestors[ancestors.length - 3]
+          const hoistSafe =
+            parent.type === 'FunctionDeclaration' ||
+            (parent.type === 'VariableDeclarator' &&
+              grandParent?.type === 'VariableDeclaration' &&
+              grandParent.kind === 'var')
+
           if (
             isModuleScope ||
             isClassOrFuncDeclaration ||
@@ -163,7 +171,7 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
             meta.declare.push(node)
 
             // Check for hoisted reads
-            if (hoisting && globalReads.has(name)) {
+            if (hoisting && hoistSafe && globalReads.has(name)) {
               const reads = globalReads.get(name)
 
               if (reads) {

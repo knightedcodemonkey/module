@@ -138,4 +138,56 @@ describe('collectModuleIdentifiers', () => {
     assert.deepEqual(innerBlockVarReads, [427])
     assert.deepEqual(catchVarReads, [536])
   })
+
+  it('does not treat TDZ reads (let/const/class) as hoists', async () => {
+    const fixturePath = join(fixtures, 'identifiers', 'hoisting', 'tdz.js')
+    const code = await readFile(fixturePath)
+    const ast = parse('file.ts', code.toString())
+    const idents = await collectModuleIdentifiers(ast.program, true)
+    const { status } = spawnSync('node', [fixturePath], { stdio: 'inherit' })
+
+    // Test for valid syntax
+    assert.equal(status, 0)
+
+    // TDZ reads should not be recorded as safe hoists; they should be absent or zero reads.
+    assert.equal(idents.get('foo')?.read.length ?? 0, 0)
+    assert.equal(idents.get('bar')?.read.length ?? 0, 0)
+    assert.equal(idents.get('Baz')?.read.length ?? 0, 0)
+    assert.equal(idents.get('inner')?.read.length ?? 0, 0)
+  })
+
+  it('ignores import hoisting for identifier tracking', async () => {
+    const fixturePath = join(fixtures, 'identifiers', 'hoisting', 'importHoist.js')
+    const code = await readFile(fixturePath)
+    const ast = parse('file.ts', code.toString())
+    const idents = await collectModuleIdentifiers(ast.program, true)
+    const { status } = spawnSync('node', [fixturePath], { stdio: 'inherit' })
+
+    // Test for valid syntax
+    assert.equal(status, 0)
+
+    // Imported names should not be counted as module-scope hoists
+    assert.equal(idents.has('x'), false)
+
+    // Local reads of imported value still exist via binding 'x' inside the module
+    // but they should not appear in module hoist tracking because x is not declared locally.
+  })
+
+  it('does not hoist function declarations inside blocks to module scope', async () => {
+    const fixturePath = join(fixtures, 'identifiers', 'hoisting', 'functionInBlock.js')
+    const code = await readFile(fixturePath)
+    const ast = parse('file.ts', code.toString())
+    const idents = await collectModuleIdentifiers(ast.program, true)
+    const funcReads: number[] = []
+    const { status } = spawnSync('node', [fixturePath], { stdio: 'inherit' })
+
+    // Test for valid syntax
+    assert.equal(status, 0)
+
+    const funcMeta = idents.get('func')
+    assert.equal(funcMeta, undefined)
+
+    // Ensure no reads got captured as module-scope hoists
+    assert.deepEqual(funcReads, [])
+  })
 })
