@@ -35,7 +35,6 @@
     "prettier": "prettier -w .",
     "prettier:check": "prettier -c .",
     "lint": "oxlint --config oxlint.json .",
-    "lint-staged": "lint-staged",
     "prepare": "husky install",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
     "build:types": "tsc --emitDeclarationOnly",
