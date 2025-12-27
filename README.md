@@ -22,7 +22,7 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 
 ## Requirements
 
-- Node >= 22.21.1
+- Node 22 or 24 (tested on 22.21.1 and 24.11.1)
 
 ## Install
 
@@ -136,6 +136,9 @@ Behavior notes (defaults in parentheses)
 - CommonJS → ESM lowering will throw on `with` statements and unshadowed `eval` calls to avoid unsound rewrites.
 
 See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling. For CommonJS to ESM lowering details, read [docs/cjs-to-esm.md](docs/cjs-to-esm.md).
+
+> [!NOTE]
+> Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
 
 ## Roadmap
 
