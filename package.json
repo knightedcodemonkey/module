@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "Transforms differences between ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
