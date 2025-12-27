@@ -30,6 +30,88 @@ const exportAssignment = (
 const defaultInteropName = '__interopDefault'
 const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModule ? mod.default : mod);\n`
 
+const isStaticRequire = (node: any, shadowed: Set<string>) =>
+  node.type === 'CallExpression' &&
+  node.callee.type === 'Identifier' &&
+  node.callee.name === 'require' &&
+  !shadowed.has('require') &&
+  node.arguments.length === 1 &&
+  node.arguments[0].type === 'Literal' &&
+  typeof node.arguments[0].value === 'string'
+
+const isRequireCall = (node: any, shadowed: Set<string>) =>
+  node.type === 'CallExpression' &&
+  node.callee.type === 'Identifier' &&
+  node.callee.name === 'require' &&
+  !shadowed.has('require')
+
+type RequireTransform = {
+  start: number
+  end: number
+  code: string
+}
+
+const lowerCjsRequireToImports = (
+  program: any,
+  code: MagicString,
+  shadowed: Set<string>,
+) => {
+  const transforms: RequireTransform[] = []
+  const imports: string[] = []
+  let nsIndex = 0
+  let needsCreateRequire = false
+
+  for (const stmt of program.body as any[]) {
+    if (stmt.type === 'VariableDeclaration' && stmt.declarations.length === 1) {
+      const decl = stmt.declarations[0]
+      const init = decl.init
+
+      if (init && isStaticRequire(init, shadowed)) {
+        const source = code.slice(init.arguments[0].start, init.arguments[0].end)
+
+        if (decl.id.type === 'Identifier') {
+          imports.push(`import * as ${decl.id.name} from ${source};\n`)
+          transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
+        } else if (decl.id.type === 'ObjectPattern') {
+          const ns = `__cjsImport${nsIndex++}`
+          const pattern = code.slice(decl.id.start, decl.id.end)
+          imports.push(`import * as ${ns} from ${source};\n`)
+          transforms.push({
+            start: stmt.start,
+            end: stmt.end,
+            code: `const ${pattern} = ${ns};\n`,
+          })
+        } else {
+          needsCreateRequire = true
+        }
+
+        continue
+      }
+
+      if (init && isRequireCall(init, shadowed)) {
+        needsCreateRequire = true
+      }
+    }
+
+    if (stmt.type === 'ExpressionStatement') {
+      const expr = stmt.expression
+
+      if (expr && isStaticRequire(expr, shadowed)) {
+        const source = code.slice(expr.arguments[0].start, expr.arguments[0].end)
+        imports.push(`import ${source};\n`)
+        transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
+        continue
+      }
+
+      if (expr && isRequireCall(expr, shadowed)) {
+        needsCreateRequire = true
+      }
+    }
+  }
+
+  return { transforms, imports, needsCreateRequire }
+}
+
 const hasTopLevelAwait = (program: any) => {
   let found = false
 
@@ -320,15 +402,33 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
+  const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
+  const shadowedBindings = new Set(
+    [...moduleIdentifiers.entries()]
+      .filter(([, meta]) => meta.declare.length > 0)
+      .map(([name]) => name),
+  )
+
+  if (opts.target === 'module' && opts.transformSyntax) {
+    if (shadowedBindings.has('module') || shadowedBindings.has('exports')) {
+      throw new Error(
+        'Cannot transform to ESM: module or exports is shadowed in module scope.',
+      )
+    }
+  }
+
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
-  await collectModuleIdentifiers(ast.program)
   const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
     : false
 
   const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
+  const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
+  let hoistedImports: string[] = []
+  let pendingRequireTransforms: RequireTransform[] = []
+  let needsCreateRequire = false
   let pendingCjsTransforms: {
     transforms: Array<ImportTransform | ExportTransform>
     needsInterop: boolean
@@ -340,20 +440,30 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     )
   }
 
-  if (opts.target === 'module' && opts.transformSyntax) {
-    /**
-     * Prepare ESM output by renaming `exports` to `__exports` and seeding an
-     * `import.meta.filename` touch so import.meta is present even when the
-     * original source never referenced it.
-     */
-    code.prepend(`let ${exportsRename} = {};
-void import.meta.filename;
-`)
+  if (shouldRaiseEsm) {
+    const {
+      transforms,
+      imports,
+      needsCreateRequire: reqCreate,
+    } = lowerCjsRequireToImports(ast.program, code, shadowedBindings)
+
+    pendingRequireTransforms = transforms
+    hoistedImports = imports
+    needsCreateRequire = reqCreate
   }
 
   await ancestorWalk(ast.program, {
     async enter(node, ancestors) {
       const parent = ancestors[ancestors.length - 2] ?? null
+
+      if (
+        shouldRaiseEsm &&
+        node.type === 'CallExpression' &&
+        isRequireCall(node, shadowedBindings) &&
+        !isStaticRequire(node, shadowedBindings)
+      ) {
+        needsCreateRequire = true
+      }
 
       if (
         node.type === 'FunctionDeclaration' ||
@@ -445,7 +555,7 @@ void import.meta.filename;
       }
 
       if (node.type === 'MemberExpression') {
-        memberExpression(node, parent, code, opts)
+        memberExpression(node, parent, code, opts, shadowedBindings)
       }
 
       if (isIdentifierName(node)) {
@@ -455,10 +565,17 @@ void import.meta.filename;
           code,
           opts,
           meta: exportsMeta,
+          shadowed: shadowedBindings,
         })
       }
     },
   })
+
+  if (pendingRequireTransforms.length) {
+    for (const t of pendingRequireTransforms) {
+      code.overwrite(t.start, t.end, t.code)
+    }
+  }
 
   if (shouldLowerCjs) {
     const { importTransforms, exportTransforms, needsInterop } = lowerEsmToCjs(
@@ -523,6 +640,30 @@ void import.meta.filename;
     if (lines.length) {
       code.append(`\n${lines.join('\n')}\n`)
     }
+  }
+
+  if (shouldRaiseEsm && opts.transformSyntax) {
+    const importPrelude: string[] = []
+
+    if (needsCreateRequire) {
+      importPrelude.push('import { createRequire } from "node:module";\n')
+    }
+
+    if (hoistedImports.length) {
+      importPrelude.push(...hoistedImports)
+    }
+
+    const requireInit = needsCreateRequire
+      ? 'const require = createRequire(import.meta.url);\n'
+      : ''
+
+    const prelude = `${importPrelude.join('')}${
+      importPrelude.length ? '\n' : ''
+    }${requireInit}let ${exportsRename} = {};
+void import.meta.filename;
+`
+
+    code.prepend(prelude)
   }
 
   if (opts.target === 'commonjs' && opts.transformSyntax && containsTopLevelAwait) {

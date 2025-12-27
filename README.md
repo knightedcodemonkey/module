@@ -134,7 +134,7 @@ Behavior notes (defaults in parentheses)
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
 
-See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling.
+See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling. For CommonJS to ESM lowering details, read [docs/cjs-to-esm.md](docs/cjs-to-esm.md).
 
 ## Roadmap
 

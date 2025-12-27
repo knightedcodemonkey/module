@@ -9,8 +9,15 @@ export const memberExpression = (
   parent: Node | null,
   src: MagicString,
   options: FormatterOptions,
+  shadowed?: Set<string>,
 ) => {
   if (options.target === 'module') {
+    if (
+      (node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
+      (node.property.type === 'Identifier' && shadowed?.has(node.property.name))
+    ) {
+      return
+    }
     if (
       node.object.type === 'Identifier' &&
       node.property.type === 'Identifier' &&

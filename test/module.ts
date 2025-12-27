@@ -207,6 +207,60 @@ describe('@knighted/module', () => {
     })
   })
 
+  it('rewrites static require to imports when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'requireStatic.cjs')
+    const outFile = join(fixtures, 'requireStatic.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.indexOf("import * as mod from './values.cjs'") > -1)
+    assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.renamed, true)
+    assert.equal((mod as any).default.cjs, 'commonjs')
+  })
+
+  it('keeps dynamic require via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'requireDynamic.cjs')
+    const outFile = join(fixtures, 'requireDynamic.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+    assert.ok(result.indexOf('const require = createRequire(import.meta.url);') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('throws when module or exports is shadowed in cjs to esm lowering', async () => {
+    const fixturePath = join(fixtures, 'shadowedExports.cjs')
+
+    await assert.rejects(
+      () => transform(fixturePath, { target: 'module' }),
+      /shadowed in module scope/i,
+    )
+  })
+
   const transformEsmToCjs = async (t: any, file: string) => {
     const fixturePath = join(fixtures, file)
     const result = await transform(fixturePath, { target: 'commonjs' })

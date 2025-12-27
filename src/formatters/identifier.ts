@@ -11,11 +11,23 @@ type IdentifierArg = {
   code: MagicString
   opts: FormatterOptions
   meta: ExportsMeta
+  shadowed?: Set<string>
 }
 
-export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg) => {
+export const identifier = ({
+  node,
+  ancestors,
+  code,
+  opts,
+  meta,
+  shadowed,
+}: IdentifierArg) => {
   if (opts.target === 'module') {
     const { start, end, name } = node
+
+    if (shadowed?.has(name)) {
+      return
+    }
 
     switch (name) {
       case '__filename':
