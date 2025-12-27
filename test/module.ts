@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { resolve, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { rm, stat, writeFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
 
@@ -189,7 +190,7 @@ describe('@knighted/module', () => {
       const { status: statusOut } = spawnSync('node', [outFile], { stdio: 'inherit' })
       assert.equal(statusOut, 0)
 
-      const exportsObj = await import(outFile)
+      const exportsObj = await import(pathToFileURL(outFile).href)
 
       if (verify) {
         verify(exportsObj as any)
