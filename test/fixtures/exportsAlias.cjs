@@ -6,5 +6,3 @@ m.bar = 2
 
 const later = e
 later.baz = 3
-
-exports

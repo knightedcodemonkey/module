@@ -47,6 +47,7 @@ export type CjsExport = {
   fromIdentifier?: string
   via: Set<'exports' | 'module.exports'>
   reassignments: SpannedNode[]
+  hasGetter?: boolean
 }
 
 export type IdentMeta = {

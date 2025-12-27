@@ -3,4 +3,3 @@ module.exports = function main() {
 }
 
 module.exports.extra = 1
-exports

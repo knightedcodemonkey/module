@@ -95,7 +95,12 @@ const collectCjsExports = async (ast: Node) => {
   const aliases = new Map<string, ExportRef['via']>()
   const literals = new Map<string, string | number>()
 
-  const addExport = (ref: ExportRef, node: Node, rhs?: SimpleIdentifier) => {
+  const addExport = (
+    ref: ExportRef,
+    node: Node,
+    rhs?: SimpleIdentifier,
+    options?: { hasGetter?: boolean },
+  ) => {
     const entry = exportsMap.get(ref.key) ?? {
       key: ref.key,
       writes: [],
@@ -105,6 +110,10 @@ const collectCjsExports = async (ast: Node) => {
 
     entry.via.add(ref.via)
     entry.writes.push(node as any)
+
+    if (options?.hasGetter) {
+      entry.hasGetter = true
+    }
 
     if (rhs) {
       entry.fromIdentifier ??= rhs.name
@@ -184,13 +193,15 @@ const collectCjsExports = async (ast: Node) => {
       }
 
       if (node.type === 'CallExpression') {
+        const callee = node.callee
+
         // Object.assign(exports, { foo: bar })
         if (
-          node.callee.type === 'MemberExpression' &&
-          node.callee.object.type === 'Identifier' &&
-          node.callee.object.name === 'Object' &&
-          node.callee.property.type === 'Identifier' &&
-          node.callee.property.name === 'assign' &&
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'Object' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'assign' &&
           node.arguments.length >= 2
         ) {
           const targetArg = node.arguments[0]
@@ -213,6 +224,90 @@ const collectCjsExports = async (ast: Node) => {
                 addExport({ key: keyName, via: ref }, node, rhsIdent)
               }
             }
+          }
+        }
+
+        // Object.defineProperty(exports, 'foo', { value, get, set })
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'Object' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'defineProperty' &&
+          node.arguments.length >= 3
+        ) {
+          const target = resolveBase(node.arguments[0] as Node, aliases)
+          if (!target) return
+
+          const keyName = literalPropName(node.arguments[1] as Node, literals)
+          if (!keyName) return
+
+          const desc = node.arguments[2]
+          if (desc.type !== 'ObjectExpression') return
+
+          let rhsIdent: SimpleIdentifier | undefined
+          let hasGetter = false
+
+          for (const prop of desc.properties) {
+            if (prop.type !== 'Property') continue
+            if (prop.key.type !== 'Identifier') continue
+
+            if (prop.key.name === 'value' && prop.value.type === 'Identifier') {
+              rhsIdent = prop.value as SimpleIdentifier
+            }
+
+            if (prop.key.name === 'get' && prop.value.type === 'Identifier') {
+              hasGetter = true
+            }
+
+            if (prop.key.name === 'set' && prop.value.type === 'Identifier') {
+              // Setter-only doesn’t create a readable export; ignore beyond marking write
+            }
+          }
+
+          addExport({ key: keyName, via: target }, node, rhsIdent, { hasGetter })
+        }
+
+        // Object.defineProperties(exports, { foo: { value: ... }, bar: { get: ... } })
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'Object' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'defineProperties' &&
+          node.arguments.length >= 2
+        ) {
+          const target = resolveBase(node.arguments[0] as Node, aliases)
+          if (!target) return
+
+          const descMap = node.arguments[1]
+          if (descMap.type !== 'ObjectExpression') return
+
+          for (const prop of descMap.properties) {
+            if (prop.type !== 'Property') continue
+
+            const keyName = literalPropName(prop.key, literals)
+            if (!keyName) continue
+
+            if (prop.value.type !== 'ObjectExpression') continue
+
+            let rhsIdent: SimpleIdentifier | undefined
+            let hasGetter = false
+
+            for (const descProp of prop.value.properties) {
+              if (descProp.type !== 'Property') continue
+              if (descProp.key.type !== 'Identifier') continue
+
+              if (descProp.key.name === 'value' && descProp.value.type === 'Identifier') {
+                rhsIdent = descProp.value as SimpleIdentifier
+              }
+
+              if (descProp.key.name === 'get' && descProp.value.type === 'Identifier') {
+                hasGetter = true
+              }
+            }
+
+            addExport({ key: keyName, via: target }, node, rhsIdent, { hasGetter })
           }
         }
       }

@@ -142,6 +142,21 @@ describe('@knighted/module', () => {
       },
     },
     {
+      name: 'exportsDefineProperty',
+      file: 'exportsDefineProperty.cjs',
+      expect: { foo: 'bar', baz: 2 },
+    },
+    {
+      name: 'exportsDefineGetter',
+      file: 'exportsDefineGetter.cjs',
+      expect: { next: 1 },
+    },
+    {
+      name: 'exportsDefineProperties',
+      file: 'exportsDefineProperties.cjs',
+      expect: { alpha: 'ok', beta: 'ok!' },
+    },
+    {
       name: 'exportsDestructure',
       file: 'exportsDestructure.cjs',
       expect: { alpha: 'A', beta: 'B', foo: 1 },

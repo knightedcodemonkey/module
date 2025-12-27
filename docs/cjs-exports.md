@@ -7,10 +7,12 @@
 - Aliases to the export bag: `const e = exports; e.foo = 1`, `const m = module.exports; m.bar = 2` (alias chains are tracked).
 - Destructuring to properties: `({ value: exports.foo } = obj)`.
 - `Object.assign(exports, { foo, bar: baz })` and `Object.assign(module.exports, { ... })` with literal keys.
+- `Object.defineProperty` / `Object.defineProperties` on exports/module.exports (aliases included) with literal keys; value and getter descriptors are collected. Getter-based exports are emitted via a proxy read (best-effort, not true ESM live bindings).
 
 ## Ignored or intentionally excluded
 
 - Non-literal computed keys (e.g., `exports[key()] = x`) are ignored for static export emission; they may still exist on the runtime bag but no ESM binding is generated.
+- Symbol keys on exports/module.exports are ignored.
 - Patterns that do not resolve to `exports`/`module.exports` or aliases are ignored.
 
 ## Emission rules
@@ -21,5 +23,5 @@
 
 ## Testing strategy
 
-- Fixtures cover each supported pattern: computed literals, alias chains, destructuring, Object.assign fan-out, and overwrite-then-augment sequences. Dynamic non-literal keys have a fixture to verify they remain un-exported.
+- Fixtures cover each supported pattern: computed literals, alias chains, destructuring, Object.assign fan-out, overwrite-then-augment sequences, and defineProperty/defineProperties (value + getter). Dynamic non-literal keys have a fixture to verify they remain un-exported.
 - Each transformed fixture is executed with Node before assertions to catch runtime/syntax issues, then its exports are asserted via ESM import.
