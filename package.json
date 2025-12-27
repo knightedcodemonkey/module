@@ -30,7 +30,7 @@
   },
   "engineStrict": true,
   "scripts": {
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc -p tsconfig.test.json",
     "prettier": "prettier -w .",
     "lint": "eslint --ignore-pattern dist .",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",

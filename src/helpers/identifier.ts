@@ -37,10 +37,10 @@ const identifier = {
     const parent = ancestors[ancestors.length - 2]
     /**
      * Every Identifier node has a parent node, so start from
-     * the grandparent when checking ancestors for a scope node.
+     * the parent when checking ancestors for a scope node.
      */
     const noScopeAncestors = () => {
-      return ancestors.slice(0, -2).every(ancestor => {
+      return ancestors.slice(0, -1).every(ancestor => {
         return !scopes.includes(ancestor.type)
       })
     }
@@ -201,4 +201,4 @@ const identifier = {
   },
 }
 
-export { identifier }
+export { identifier, isIdentifierName }

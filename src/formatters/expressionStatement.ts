@@ -9,7 +9,7 @@ export const expressionStatement = (
   src: MagicString,
   options: FormatterOptions,
 ) => {
-  if (options.type === 'module') {
+  if (options.target === 'module') {
     if (node.expression.type === 'Identifier') {
       const { start, end } = node
       const name = node.expression.name
@@ -37,7 +37,7 @@ export const expressionStatement = (
     }
   }
 
-  if (options.type === 'commonjs') {
+  if (options.target === 'commonjs') {
     if (node.expression.type === 'Identifier') {
       const { start, end } = node
       const name = node.expression.name

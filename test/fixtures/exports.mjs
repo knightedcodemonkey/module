@@ -34,7 +34,7 @@ function bar(exports) {
 }
 const foo = exports => {
   const fn = exports
-  const other = module.exports.other
+  const other = __exports.other
   return `${exports}${fn}${other}`
 }
 ;(arg => {

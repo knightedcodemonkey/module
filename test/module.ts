@@ -27,7 +27,7 @@ const isValidFilename = async (filename: string) => {
 describe('@knighted/module', () => {
   it.skip('transforms __filename', async t => {
     const result = await transform(join(fixtures, '__filename.cjs'), {
-      type: 'module',
+      target: 'module',
     })
     const outFile = join(fixtures, '__filename.mjs')
 
@@ -51,7 +51,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms __dirname', async t => {
     const result = await transform(join(fixtures, '__dirname.cjs'), {
-      type: 'module',
+      target: 'module',
     })
     const outFile = join(fixtures, '__dirname.mjs')
 
@@ -76,8 +76,7 @@ describe('@knighted/module', () => {
   it('transforms exports', async t => {
     const fixturePath = join(fixtures, 'exports.cjs')
     const result = await transform(fixturePath, {
-      type: 'module',
-      importsExports: true,
+      target: 'module',
     })
     const outFile = join(fixtures, 'exports.mjs')
     const { status: statusIn } = spawnSync('node', [fixturePath], {
@@ -97,7 +96,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms import.meta', async t => {
     const result = await transform(join(fixtures, 'import.meta.mjs'), {
-      type: 'commonjs',
+      target: 'commonjs',
     })
     const outFile = join(fixtures, 'import.meta.cjs')
 
@@ -113,7 +112,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms import.meta.url', async t => {
     const result = await transform(join(fixtures, 'import.meta.url.mjs'), {
-      type: 'commonjs',
+      target: 'commonjs',
     })
     const outFile = join(fixtures, 'import.meta.url.cjs')
     t.after(() => {
@@ -136,7 +135,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms import.meta.filename', async t => {
     const result = await transform(join(fixtures, 'import.meta.filename.mjs'), {
-      type: 'commonjs',
+      target: 'commonjs',
     })
     const outFile = join(fixtures, 'import.meta.filename.cjs')
 
@@ -157,7 +156,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms import.meta.dirname', async t => {
     const result = await transform(join(fixtures, 'import.meta.dirname.mjs'), {
-      type: 'commonjs',
+      target: 'commonjs',
     })
     const outFile = join(fixtures, 'import.meta.dirname.cjs')
 
@@ -178,7 +177,7 @@ describe('@knighted/module', () => {
 
   it.skip('transforms import.meta.resolve', async t => {
     const result = await transform(join(fixtures, 'import.meta.resolve.mjs'), {
-      type: 'commonjs',
+      target: 'commonjs',
     })
     const outFile = join(fixtures, 'import.meta.resolve.cjs')
 
@@ -198,7 +197,7 @@ describe('@knighted/module', () => {
   })
 
   it.skip('transforms es module globals to commonjs globals', async () => {
-    const result = await transform(join(fixtures, 'file.mjs'), { type: 'commonjs' })
+    const result = await transform(join(fixtures, 'file.mjs'), { target: 'commonjs' })
 
     assert.equal(result.indexOf('import.meta.url'), -1)
     assert.equal(result.indexOf('import.meta.filename'), -1)
@@ -216,7 +215,7 @@ describe('@knighted/module', () => {
   })
 
   it.skip('transforms commonjs globals to es module globals', async () => {
-    const result = await transform(join(fixtures, 'file.cjs'), { type: 'module' })
+    const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
 
     console.log(result)
     assert.equal(result.indexOf('__filename'), -1)
@@ -235,12 +234,12 @@ describe('@knighted/module', () => {
 
   it.skip('updates specifiers when option enabled', async () => {
     const result = await transform(join(fixtures, 'specifier.mjs'), {
-      type: 'commonjs',
-      specifier: '.js',
+      target: 'commonjs',
+      rewriteSpecifier: '.js',
     })
     const cjsResult = await transform(join(fixtures, 'specifier.cjs'), {
-      type: 'module',
-      specifier: '.mjs',
+      target: 'module',
+      rewriteSpecifier: '.mjs',
     })
 
     assert.equal((result.match(/\.\/file\.js/g) ?? []).length, 6)
@@ -261,8 +260,8 @@ describe('@knighted/module', () => {
       rm(cjs, { force: true })
     })
 
-    await transform(join(fixtures, 'file.mjs'), { type: 'commonjs', out: cjs })
-    await transform(join(fixtures, 'file.cjs'), { type: 'module', out: mjs })
+    await transform(join(fixtures, 'file.mjs'), { target: 'commonjs', out: cjs })
+    await transform(join(fixtures, 'file.cjs'), { target: 'module', out: mjs })
 
     assert.equal(await isValidFilename(mjs), true)
     assert.equal(await isValidFilename(cjs), true)

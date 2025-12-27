@@ -9,10 +9,18 @@ import { getLangFromExt } from './utils.js'
 import type { ModuleOptions } from './types.js'
 
 const defaultOptions = {
-  type: 'commonjs',
+  target: 'commonjs',
+  sourceType: 'auto',
+  transformSyntax: true,
+  liveBindings: 'strict',
+  rewriteSpecifier: undefined,
+  dirFilename: 'inject',
+  importMeta: 'shim',
+  requireSource: 'builtin',
+  cjsDefault: 'auto',
+  topLevelAwait: 'error',
   out: undefined,
-  importsExports: false,
-  specifier: undefined,
+  inPlace: false,
 } satisfies ModuleOptions
 const transform = async (filename: string, options: ModuleOptions = defaultOptions) => {
   const opts = { ...defaultOptions, ...options }
@@ -21,11 +29,15 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
   const ast = parse(filename, code)
   let source = await format(code, ast, opts)
 
-  if (options.specifier) {
+  if (opts.rewriteSpecifier) {
     const code = await specifier.updateSrc(
       source,
       getLangFromExt(filename),
       ({ value }) => {
+        if (typeof opts.rewriteSpecifier === 'function') {
+          return opts.rewriteSpecifier(value) ?? undefined
+        }
+
         // Collapse any BinaryExpression or NewExpression to test for a relative specifier
         const collapsed = value.replace(/['"`+)\s]|new String\(/g, '')
         const relative = /^(?:\.|\.\.)\//
@@ -33,8 +45,8 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
         if (relative.test(collapsed)) {
           // $2 is for any closing quotation/parens around BE or NE
           return value.replace(
-            /(.+)\.(?:m|c)?(?:j|t)s([)'"`]*)?$/,
-            `$1${options.specifier}$2`,
+            /(.+)\.(?:m|c)?(?:j|t)s([)'"]*)?$/,
+            `$1${opts.rewriteSpecifier}$2`,
           )
         }
       },
@@ -43,8 +55,10 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
     source = code
   }
 
-  if (opts.out) {
-    await writeFile(resolve(opts.out), source)
+  const outputPath = opts.inPlace ? file : opts.out ? resolve(opts.out) : undefined
+
+  if (outputPath) {
+    await writeFile(outputPath, source)
   }
 
   return source

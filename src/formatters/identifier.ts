@@ -3,7 +3,7 @@ import type { Node, IdentifierName } from 'oxc-parser'
 
 import type { FormatterOptions, ExportsMeta } from '../types.js'
 import { exportsRename } from '../utils.js'
-import { identifier as ident } from '../helpers.js'
+import { identifier as ident } from '../helpers/identifier.js'
 
 type IdentifierArg = {
   node: IdentifierName
@@ -14,7 +14,7 @@ type IdentifierArg = {
 }
 
 export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg) => {
-  if (opts.type === 'module') {
+  if (opts.target === 'module') {
     const { start, end, name } = node
 
     switch (name) {
@@ -28,7 +28,7 @@ export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg)
         {
           const parent = ancestors[ancestors.length - 2]
 
-          if (opts.importsExports) {
+          if (opts.transformSyntax) {
             if (parent.type === 'AssignmentExpression' && parent.left === node) {
               // The code is reassigning `exports` to something else.
 
@@ -37,7 +37,7 @@ export const identifier = ({ node, ancestors, code, opts, meta }: IdentifierArg)
             }
 
             if (
-              //ident.isModuleScope(ancestors) &&
+              ident.isModuleScope(ancestors) &&
               !ident.isFunctionExpressionId(ancestors) &&
               !ident.isExportSpecifierAlias(ancestors) &&
               !ident.isClassPropertyKey(ancestors) &&

@@ -8,8 +8,8 @@ import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
 import { expressionStatement } from './formatters/expressionStatement.js'
 import { assignmentExpression } from './formatters/assignmentExpression.js'
-import { isValidUrl, exportsRename, collectModuleIdentifiers } from '../src/utils.js'
-import { isIdentifierName } from '../src/helpers.js'
+import { isValidUrl, exportsRename, collectModuleIdentifiers } from './utils.js'
+import { isIdentifierName } from './helpers/identifier.js'
 
 /**
  * Note, there is no specific conversion for `import.meta.main` as it does not exist.
@@ -25,7 +25,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   } satisfies ExportsMeta
   let identifiers = await collectModuleIdentifiers(ast.program)
 
-  if (opts.type === 'module' && opts.importsExports) {
+  if (opts.target === 'module' && opts.transformSyntax) {
     /**
      * Rename `exports` to `__exports` in the global scope.
      * Collect all identifiers in the global/module scope.
@@ -42,7 +42,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         node.type === 'FunctionExpression' ||
         node.type === 'ArrowFunctionExpression'
       ) {
-        const skipped = ['__filename', '__dirname', 'exports']
+        const skipped = ['__filename', '__dirname']
         const skippedParams = node.params.filter(
           param => param.type === 'Identifier' && skipped.includes(param.name),
         )
@@ -102,7 +102,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         node.property.name === 'exports' &&
         parent?.type === 'ExpressionStatement'
       ) {
-        if (opts.type === 'module') {
+        if (opts.target === 'module') {
           code.update(node.start, node.end, ';')
           // Prevent parsing the `exports` identifier again.
           this.skip()
@@ -124,6 +124,10 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
       if (node.type === 'MetaProperty') {
         metaProperty(node, parent, code, opts)
+      }
+
+      if (node.type === 'MemberExpression') {
+        memberExpression(node, parent, code, opts)
       }
 
       if (isIdentifierName(node)) {

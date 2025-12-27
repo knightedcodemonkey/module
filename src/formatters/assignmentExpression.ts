@@ -20,7 +20,7 @@ export const assignmentExpression = async ({
   opts,
   meta,
 }: AssignmentExpressionArg) => {
-  if (opts.type === 'module' && opts.importsExports) {
+  if (opts.target === 'module' && opts.transformSyntax) {
     await walk(node, {
       enter(childNode, childParent) {
         if (childNode.type === 'Identifier' && childNode.name === 'exports') {

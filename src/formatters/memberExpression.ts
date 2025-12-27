@@ -2,6 +2,7 @@ import MagicString from 'magic-string'
 import type { MemberExpression, Node } from 'oxc-parser'
 
 import type { FormatterOptions } from '../types.js'
+import { exportsRename } from '../utils.js'
 
 export const memberExpression = (
   node: MemberExpression,
@@ -9,7 +10,17 @@ export const memberExpression = (
   src: MagicString,
   options: FormatterOptions,
 ) => {
-  if (options.type === 'module') {
+  if (options.target === 'module') {
+    if (
+      node.object.type === 'Identifier' &&
+      node.property.type === 'Identifier' &&
+      node.object.name === 'module' &&
+      node.property.name === 'exports'
+    ) {
+      src.update(node.start, node.end, exportsRename)
+      return
+    }
+
     if (
       node.object.type === 'Identifier' &&
       node.property.type === 'Identifier' &&

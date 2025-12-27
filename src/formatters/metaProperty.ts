@@ -9,7 +9,7 @@ export const metaProperty = (
   src: MagicString,
   options: FormatterOptions,
 ) => {
-  if (options.type === 'commonjs') {
+  if (options.target === 'commonjs') {
     if (parent?.type !== 'MemberExpression') {
       // This is a bare `import.meta` expression
       const { start, end } = node
