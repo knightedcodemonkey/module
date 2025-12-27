@@ -1,52 +1,43 @@
 import MagicString from 'magic-string'
+import type { Node, MetaProperty } from 'oxc-parser'
 
-import type { NodePath } from '@babel/traverse'
-import type { MetaProperty } from '@babel/types'
 import type { FormatterOptions } from '../types.js'
 
-export const metaProperty = (nodePath: NodePath<MetaProperty>, src: MagicString, options: FormatterOptions) => {
-  if (options.type === 'commonjs') {
-    const path = nodePath.findParent(path => path.isMemberExpression())
-
-    if (path) {
-      const { node } = path
+export const metaProperty = (
+  node: MetaProperty,
+  parent: Node | null,
+  src: MagicString,
+  options: FormatterOptions,
+) => {
+  if (options.target === 'commonjs') {
+    if (parent?.type !== 'MemberExpression') {
+      // This is a bare `import.meta` expression
       const { start, end } = node
 
-      if (
-        node.type === 'MemberExpression' &&
-        node.property.type === 'Identifier' &&
-        typeof start == 'number' &&
-        typeof end === 'number'
-      ) {
-        const name = node.property.name
+      src.update(start, end, 'module')
+    }
 
-        switch (name) {
-          case 'url':
-            src.update(start, end, 'require("node:url").pathToFileURL(__filename).toString()')
-            break
-          case 'filename':
-            src.update(start, end, '__filename')
-            break
-          case 'dirname':
-            src.update(start, end, '__dirname')
-            break
-          case 'resolve':
-            src.update(start, end, 'require.resolve')
-            break
-        }
-      }
-    } else {
-      const { node } = nodePath
-      const { start, end } = node
-
-      if (
-        node.property.type === 'Identifier' &&
-        node.property.name === 'meta' &&
-        typeof start === 'number' &&
-        typeof end === 'number'
-      ) {
-        // This is an `import.meta` expression
-        src.update(start, end, 'require.main')
+    if (parent?.type === 'MemberExpression' && parent.property.type === 'Identifier') {
+      switch (parent.property.name) {
+        case 'url':
+          src.update(
+            parent.start,
+            parent.end,
+            'require("node:url").pathToFileURL(__filename).href',
+          )
+          break
+        case 'filename':
+          src.update(parent.start, parent.end, '__filename')
+          break
+        case 'dirname':
+          src.update(parent.start, parent.end, '__dirname')
+          break
+        case 'resolve':
+          /**
+           * Should this be `require('node:url').pathToFileURL(require.resolve(<parsed specifier>)).href`?
+           */
+          src.update(parent.start, parent.end, 'require.resolve')
+          break
       }
     }
   }

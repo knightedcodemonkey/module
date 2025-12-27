@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+npm run prettier:check
+npm run lint
+npm test

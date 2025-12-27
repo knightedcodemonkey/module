@@ -1,21 +1,7 @@
-import { commonjs } from './file.cjs'
+const bare = import.meta
+const url = import.meta.url
+const filename = import.meta.filename
+const dirname = import.meta.dirname
+const resolved = import.meta.resolve('./values.mjs')
 
-import.meta
-import.meta.url
-import.meta.dirname
-import.meta.filename
-import.meta.resolve('./file.cjs')
-import.meta.resolve(`${import.meta.dirname}/other.js`)
-
-const detectCalledFromCli = async path => {
-  const realPath = await realpath(path)
-
-  if (import.meta.url === pathToFileURL(realPath).href) {
-    stdout.write('invoked as cli')
-  }
-}
-
-detectCalledFromCli(argv[1])
-
-export const esmodule = true
-export { commonjs }
+export { bare, url, filename, dirname, resolved }

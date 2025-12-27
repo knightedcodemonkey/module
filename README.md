@@ -9,11 +9,10 @@ Node.js utility for transforming a JavaScript or TypeScript file from an ES modu
 - ES module ➡️ CommonJS
 - CommonJS ➡️ ES module
 
-By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs), but it also accepts options that allow:
+> [!IMPORTANT]  
+> All parsing logic is applied under the assumption the code is in [strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode) which [modules run under by default](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#other_differences_between_modules_and_classic_scripts).
 
-- Converting `import`/`export` to `require`/`exports`
-- Extensions to be updated in relative specifiers
-- Write transformed source code to a filename
+By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs). Options let you control syntax rewriting, specifier updates, and output.
 
 ## Requirements
 
@@ -47,9 +46,8 @@ You can transform it to the equivalent CommonJS module
 import { transform } from '@knighted/module'
 
 await transform('./file.js', {
-  type: 'commonjs'
-  moduleLoading: true,
-  out: './file.cjs'
+  target: 'commonjs',
+  out: './file.cjs',
 })
 ```
 
@@ -65,7 +63,10 @@ const { realpath } = require('node:fs/promises')
 const detectCalledFromCli = async path => {
   const realPath = await realpath(path)
 
-  if (require('node:url').pathToFileURL(__filename).toString() === pathToFileURL(realPath).href) {
+  if (
+    require('node:url').pathToFileURL(__filename).toString() ===
+    pathToFileURL(realPath).href
+  ) {
     console.log('invoked directly by node')
   }
 }
@@ -84,18 +85,29 @@ invoked directly by node
 
 ```ts
 type ModuleOptions = {
-  /* What module system to convert to. */
-  type?: 'module' | 'commonjs'
-  /* Whether import/export and require/exports should be transformed. */
-  modules?: boolean
-  /* Whether to change specifier extensions to the assigned value. If omitted they are left alone. */
-  specifier?: '.js' | '.mjs' | '.cjs' | '.ts' | '.mts' | '.cts'
-  /* What filepath to write the transformed source to. */
+  target: 'module' | 'commonjs'
+  sourceType?: 'auto' | 'module' | 'commonjs'
+  transformSyntax?: boolean
+  liveBindings?: 'strict' | 'loose' | 'off'
+  rewriteSpecifier?:
+    | '.js'
+    | '.mjs'
+    | '.cjs'
+    | '.ts'
+    | '.mts'
+    | '.cts'
+    | ((value: string) => string | null | undefined)
+  dirFilename?: 'inject' | 'preserve' | 'error'
+  importMeta?: 'preserve' | 'shim' | 'error'
+  requireSource?: 'builtin' | 'create-require'
+  cjsDefault?: 'module-exports' | 'auto' | 'none'
+  topLevelAwait?: 'error' | 'wrap' | 'preserve'
   out?: string
+  inPlace?: boolean
 }
 ```
 
 ## Roadmap
 
-- Support option `modules`.
 - Remove `@knighted/specifier` and avoid double parsing.
+- Flesh out live-binding and top-level await handling.

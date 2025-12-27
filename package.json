@@ -1,7 +1,7 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-alpha.10",
-  "description": "Transforms module differences between ES and CommonJS.",
+  "version": "1.0.0-beta.0",
+  "description": "Transforms differences between ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
   "exports": {
@@ -18,13 +18,24 @@
     },
     "./package.json": "./package.json"
   },
+  "imports": {
+    "#parse": "./src/parse.js",
+    "#format": "./src/format.js",
+    "#utils": "./src/utils.js",
+    "#walk": "./src/walk.js",
+    "#helpers/*": "./src/helpers/*.js",
+    "#formatters/*": "./src/formatters/*.js"
+  },
   "engines": {
     "node": ">=20.11.0"
   },
   "engineStrict": true,
   "scripts": {
+    "check-types": "tsc -p tsconfig.test.json",
     "prettier": "prettier -w .",
-    "lint": "eslint --ignore-pattern dist .",
+    "prettier:check": "prettier -c .",
+    "lint": "oxlint --config oxlint.json .",
+    "prepare": "husky install",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
@@ -33,8 +44,14 @@
   },
   "keywords": [
     "transform",
-    "esm",
-    "commonjs"
+    "es module",
+    "commonjs",
+    "require",
+    "require.resolve",
+    "import.meta.url",
+    "import.meta.dirname",
+    "__dirname",
+    "__filename"
   ],
   "files": [
     "dist"
@@ -49,34 +66,35 @@
     "url": "https://github.com/knightedcodemonkey/module/issues"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.28.0",
-    "@babel/preset-typescript": "^7.27.1",
-    "@babel/types": "^7.28.2",
-    "@eslint/js": "^9.39.1",
-    "@types/babel__traverse": "^7.20.7",
+    "@knighted/dump": "^1.0.3",
     "@types/node": "^22.13.17",
     "babel-dual-package": "^1.2.3",
     "c8": "^10.1.3",
-    "eslint": "^9.39.1",
-    "eslint-plugin-n": "^17.23.1",
-    "prettier": "^3.2.5",
-    "tsx": "^4.20.3",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.48.0"
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "oxlint": "^1.35.0",
+    "prettier": "^3.7.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@babel/parser": "^7.28.0",
-    "@babel/traverse": "^7.28.0",
-    "@knighted/specifier": "^2.0.7",
-    "@knighted/walk": "^1.0.0",
-    "magic-string": "^0.30.10",
-    "node-module-type": "^1.0.2",
-    "oxc-parser": "^0.78.0"
+    "@knighted/specifier": "^2.0.9",
+    "magic-string": "^0.30.21",
+    "node-module-type": "^1.0.4",
+    "oxc-parser": "^0.105.0",
+    "periscopic": "^4.0.2"
   },
   "prettier": {
     "arrowParens": "avoid",
-    "printWidth": 119,
+    "printWidth": 90,
     "semi": false,
     "singleQuote": true
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx,jsx,cjs,mjs}": [
+      "prettier -c",
+      "oxlint --config oxlint.json"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": "prettier -c"
   }
 }

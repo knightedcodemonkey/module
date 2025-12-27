@@ -1,31 +1,50 @@
 import MagicString from 'magic-string'
+import type { MemberExpression, Node } from 'oxc-parser'
 
-import type { NodePath } from '@babel/traverse'
-import type { MemberExpression } from '@babel/types'
 import type { FormatterOptions } from '../types.js'
+import { exportsRename } from '../utils.js'
 
 export const memberExpression = (
-  nodePath: NodePath<MemberExpression>,
+  node: MemberExpression,
+  parent: Node | null,
   src: MagicString,
   options: FormatterOptions,
 ) => {
-  if (options.type === 'module') {
-    const { node } = nodePath
-    const { start, end } = node
+  if (options.target === 'module') {
+    if (
+      node.object.type === 'Identifier' &&
+      node.property.type === 'Identifier' &&
+      node.object.name === 'module' &&
+      node.property.name === 'exports'
+    ) {
+      src.update(node.start, node.end, exportsRename)
+      return
+    }
 
     if (
-      typeof start === 'number' &&
-      typeof end === 'number' &&
       node.object.type === 'Identifier' &&
-      node.object.name === 'require' &&
-      node.property.type === 'Identifier'
+      node.property.type === 'Identifier' &&
+      node.object.name === 'require'
     ) {
+      const { start, end } = node
       const { name } = node.property
 
       // CommonJS properties of `require`
       switch (name) {
         case 'main':
-          src.update(start, end, 'import.meta')
+          /**
+           * Node.js team still quibbling over import.meta.main ¯\_(ツ)_/¯
+           * @see https://github.com/nodejs/node/pull/32223
+           */
+          if (parent?.type === 'ExpressionStatement') {
+            // This is a standalone expression so remove it to not cause run-time errors.
+            src.remove(start, end)
+          }
+          /**
+           * Transform require.main === module.
+           */
+          if (parent?.type === 'BinaryExpression') {
+          }
           break
         case 'resolve':
           src.update(start, end, 'import.meta.resolve')

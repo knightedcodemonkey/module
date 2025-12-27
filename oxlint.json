@@ -1,0 +1,30 @@
+{
+  "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**"],
+  "plugins": ["eslint", "typescript", "unicorn", "import", "oxc", "node"],
+  "rules": {
+    "no-console": "error",
+    "unicorn/filename-case": ["error", { "case": "camelCase" }],
+    "import/no-unused-modules": [
+      "warn",
+      { "missingExports": true, "unusedExports": true }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["test/fixtures/**", "testing.*", "test/helpers/**"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-unused-expressions": "off",
+        "no-dupe-class-members": "off",
+        "no-useless-rename": "off",
+        "unicorn/no-empty-file": "off"
+      }
+    },
+    {
+      "files": ["test/fixtures/identifiers/**"],
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
+  ]
+}
