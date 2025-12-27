@@ -84,7 +84,7 @@ describe('@knighted/module', () => {
     })
 
     t.after(() => {
-      //rm(outFile, { force: true })
+      rm(outFile, { force: true })
     })
 
     assert.equal(statusIn, 0)
