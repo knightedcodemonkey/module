@@ -1,6 +1,4 @@
-import type { Node } from 'oxc-parser'
-
-const scopes = [
+const scopeNodes = [
   'BlockStatement',
   'FunctionDeclaration',
   'FunctionExpression',
@@ -11,10 +9,4 @@ const scopes = [
   'StaticBlock',
 ]
 
-const scope = {
-  isScope(node: Node) {
-    return scopes.includes(node.type)
-  },
-}
-
-export { scopes, scope }
+export { scopeNodes }

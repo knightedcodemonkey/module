@@ -2,8 +2,8 @@ import type { Node } from 'oxc-parser'
 
 import type { IdentMeta, SpannedNode, Scope } from '../types.js'
 import { ancestorWalk } from '#walk'
-import { scopes as scopeNodes } from '#helpers/scope.js'
 import { identifier } from '#helpers/identifier.js'
+import { scopeNodes } from './scopeNodes.js'
 
 const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
   const { type } = node

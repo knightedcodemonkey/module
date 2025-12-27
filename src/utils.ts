@@ -5,8 +5,8 @@ import type { Node } from 'oxc-parser'
 import type { Specifier } from '@knighted/specifier'
 
 import type { IdentMeta, SpannedNode, Scope, CjsExport } from './types.js'
-import { scopes as scopeNodes } from './helpers/scope.js'
 import { identifier } from './helpers/identifier.js'
+import { scopeNodes } from './utils/scopeNodes.js'
 
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {

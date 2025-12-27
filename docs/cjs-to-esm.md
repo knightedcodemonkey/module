@@ -3,7 +3,7 @@
 ## Scope
 
 - Rewrites CommonJS modules to ESM when `target: 'module'` with `transformSyntax` enabled.
-- Assumes Node 20.11+ runtime with native ESM.
+- Assumes Node 22.21+ runtime with native ESM.
 - Skips lowering when `module` or `exports` are shadowed at module scope to avoid mis-compilation.
 - Deprecated CJS features (`require.extensions`, `module.parent`, legacy folder-as-module resolution) are left as-is.
 
