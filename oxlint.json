@@ -3,7 +3,11 @@
   "plugins": ["eslint", "typescript", "unicorn", "import", "oxc", "node"],
   "rules": {
     "no-console": "error",
-    "unicorn/filename-case": ["error", { "case": "camelCase" }]
+    "unicorn/filename-case": ["error", { "case": "camelCase" }],
+    "import/no-unused-modules": [
+      "warn",
+      { "missingExports": true, "unusedExports": true }
+    ]
   },
   "overrides": [
     {
