@@ -24,7 +24,6 @@ const identifier = {
     return isIdentifierName(node)
   },
   isMetaProperty(ancestors: Node[]) {
-    const node = ancestors[ancestors.length - 1]
     const parent = ancestors[ancestors.length - 2]
 
     return (

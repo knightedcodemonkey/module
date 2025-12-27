@@ -14,7 +14,6 @@ export const expressionStatement = (
       const { start, end } = node
       const name = node.expression.name
 
-      /*
       // CommonJS globals (as bare identifiers)
       switch (name) {
         case 'require':
@@ -33,7 +32,6 @@ export const expressionStatement = (
           src.update(start, end, 'import.meta.dirname')
           break
       }
-      */
     }
   }
 
@@ -41,6 +39,8 @@ export const expressionStatement = (
     if (node.expression.type === 'Identifier') {
       const { start, end } = node
       const name = node.expression.name
+
+      void start; void end; void name;
     }
   }
 }

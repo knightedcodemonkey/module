@@ -12,11 +12,11 @@ type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
   const ext = extname(filename)
 
-  if (/\.js$/.test(ext)) {
+  if (ext.endsWith('.js')) {
     return 'js'
   }
 
-  if (/\.ts$/.test(ext)) {
+  if (ext.endsWith('.ts')) {
     return 'ts'
   }
 

@@ -1,0 +1,28 @@
+{
+  "ignorePatterns": [
+    "dist/**",
+    "coverage/**",
+    "node_modules/**"
+  ],
+  "rules": {
+    "no-console": "error"
+  },
+  "overrides": [
+    {
+      "files": ["test/fixtures/**", "testing.*", "test/helpers/**"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-unused-expressions": "off",
+        "no-dupe-class-members": "off",
+        "no-useless-rename": "off",
+        "unicorn/no-empty-file": "off"
+      }
+    },
+    {
+      "files": ["test/fixtures/identifiers/**"],
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
+  ]
+}

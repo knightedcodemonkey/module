@@ -216,8 +216,6 @@ describe('@knighted/module', () => {
 
   it.skip('transforms commonjs globals to es module globals', async () => {
     const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
-
-    console.log(result)
     assert.equal(result.indexOf('__filename'), -1)
     assert.equal(result.indexOf('__dirname'), -1)
     assert.equal(result.indexOf('require.resolve'), -1)

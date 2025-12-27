@@ -38,10 +38,4 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    files: ['test/fixtures/identifiers/**/*'],
-    rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
-    },
-  },
 )

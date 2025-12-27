@@ -3,7 +3,6 @@ import type { Node, AssignmentExpression } from 'oxc-parser'
 import { walk } from '@knighted/walk'
 
 import type { FormatterOptions, ExportsMeta } from '../types.js'
-import { exportsRename } from '../utils.js'
 
 type AssignmentExpressionArg = {
   node: AssignmentExpression
@@ -15,10 +14,10 @@ type AssignmentExpressionArg = {
 
 export const assignmentExpression = async ({
   node,
-  parent,
-  code,
+  parent: _parent,
+  code: _code,
   opts,
-  meta,
+  meta: _meta,
 }: AssignmentExpressionArg) => {
   if (opts.target === 'module' && opts.transformSyntax) {
     await walk(node, {

@@ -1,12 +1,11 @@
 import type { ParseResult } from 'oxc-parser'
-import type { FormatterOptions, ExportsMeta, IdentMeta } from './types.js'
+import type { FormatterOptions, ExportsMeta } from './types.js'
 import MagicString from 'magic-string'
-import { walk, ancestorWalk } from '@knighted/walk'
+import { ancestorWalk } from '@knighted/walk'
 
 import { identifier } from './formatters/identifier.js'
 import { metaProperty } from './formatters/metaProperty.js'
 import { memberExpression } from './formatters/memberExpression.js'
-import { expressionStatement } from './formatters/expressionStatement.js'
 import { assignmentExpression } from './formatters/assignmentExpression.js'
 import { isValidUrl, exportsRename, collectModuleIdentifiers } from './utils.js'
 import { isIdentifierName } from './helpers/identifier.js'
@@ -23,7 +22,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
-  let identifiers = await collectModuleIdentifiers(ast.program)
+  await collectModuleIdentifiers(ast.program)
 
   if (opts.target === 'module' && opts.transformSyntax) {
     /**

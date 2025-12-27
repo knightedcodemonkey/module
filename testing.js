@@ -5,4 +5,4 @@ const obj = {
     return 'Hello, world!'
   },
 }
-console.log(obj.method())
+obj.method()
