@@ -4,8 +4,8 @@ import { resolve, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 
-import { parse } from '../src/parse.js'
-import { collectModuleIdentifiers } from '../src/utils.js'
+import { parse } from '#parse'
+import { collectModuleIdentifiers } from '#utils/identifiers.js'
 
 // Use fixtures to more easily track character offsets and line numbers in test cases.
 const fixtures = resolve(import.meta.dirname, 'fixtures')
