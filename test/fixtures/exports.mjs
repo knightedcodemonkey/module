@@ -1,5 +1,5 @@
-let __exports = {};
-void import.meta.filename;
+let __exports = {}
+void import.meta.filename
 __exports
 
 const filename = __exports

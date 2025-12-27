@@ -1,7 +1,6 @@
 import type { ParseResult } from 'oxc-parser'
 import type { FormatterOptions, ExportsMeta } from './types.js'
 import MagicString from 'magic-string'
-import { ancestorWalk } from '@knighted/walk'
 
 import { identifier } from './formatters/identifier.js'
 import { metaProperty } from './formatters/metaProperty.js'
@@ -9,6 +8,7 @@ import { memberExpression } from './formatters/memberExpression.js'
 import { assignmentExpression } from './formatters/assignmentExpression.js'
 import { isValidUrl, exportsRename, collectModuleIdentifiers } from './utils.js'
 import { isIdentifierName } from './helpers/identifier.js'
+import { ancestorWalk } from './walk.js'
 
 /**
  * Note, there is no specific conversion for `import.meta.main` as it does not exist.

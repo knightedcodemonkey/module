@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { ancestorWalk } from '@knighted/walk'
+import { ancestorWalk } from '#walk'
 
 import { parse } from '#parse'
 import { identifier } from '#helpers/identifier'

@@ -1,6 +1,6 @@
 import MagicString from 'magic-string'
 import type { Node, AssignmentExpression } from 'oxc-parser'
-import { walk } from '@knighted/walk'
+import { walk } from '../walk.js'
 
 import type { FormatterOptions, ExportsMeta } from '../types.js'
 

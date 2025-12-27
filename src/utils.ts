@@ -1,5 +1,5 @@
 import { extname } from 'node:path'
-import { ancestorWalk } from '@knighted/walk'
+import { ancestorWalk } from './walk.js'
 
 import type { Node } from 'oxc-parser'
 import type { Specifier } from '@knighted/specifier'
