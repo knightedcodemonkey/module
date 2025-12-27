@@ -6,17 +6,7 @@ import type { Specifier } from '@knighted/specifier'
 
 import type { IdentMeta, SpannedNode, Scope, CjsExport } from './types.js'
 import { identifier } from './helpers/identifier.js'
-
-const scopeNodes = [
-  'BlockStatement',
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'ArrowFunctionExpression',
-  'ClassDeclaration',
-  'ClassExpression',
-  'ClassBody',
-  'StaticBlock',
-]
+import { scopeNodes } from './utils/scopeNodes.js'
 
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
