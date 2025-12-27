@@ -17,7 +17,10 @@
         "no-unused-expressions": "off",
         "no-dupe-class-members": "off",
         "no-useless-rename": "off",
-        "unicorn/no-empty-file": "off"
+        "unicorn/no-empty-file": "off",
+        "no-with": "off",
+        "no-console": "off",
+        "no-eval": "off"
       }
     },
     {

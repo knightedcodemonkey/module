@@ -515,6 +515,20 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         }
       }
 
+      if (shouldRaiseEsm && node.type === 'WithStatement') {
+        throw new Error('Cannot transform to ESM: with statements are not supported.')
+      }
+
+      if (
+        shouldRaiseEsm &&
+        node.type === 'CallExpression' &&
+        node.callee.type === 'Identifier' &&
+        node.callee.name === 'eval' &&
+        !shadowedBindings.has('eval')
+      ) {
+        throw new Error('Cannot transform to ESM: eval is not supported.')
+      }
+
       if (
         shouldRaiseEsm &&
         node.type === 'CallExpression' &&

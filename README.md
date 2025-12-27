@@ -133,6 +133,7 @@ Behavior notes (defaults in parentheses)
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
+- CommonJS → ESM lowering will throw on `with` statements and unshadowed `eval` calls to avoid unsound rewrites.
 
 See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling. For CommonJS to ESM lowering details, read [docs/cjs-to-esm.md](docs/cjs-to-esm.md).
 
@@ -141,3 +142,4 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 - Remove `@knighted/specifier` and avoid double parsing.
 - Emit source maps and clearer diagnostics for transform choices.
 - Broaden fixtures covering live-binding and top-level await edge cases across Node versions.
+- Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.

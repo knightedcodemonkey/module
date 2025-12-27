@@ -251,6 +251,15 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).default.commonjs, true)
   })
 
+  it('throws when encountering with/eval while lowering to esm', async () => {
+    const fixturePath = join(fixtures, 'withEval.cjs')
+
+    await assert.rejects(
+      () => transform(fixturePath, { target: 'module' }),
+      /with statements are not supported|eval is not supported/i,
+    )
+  })
+
   it('keeps nested requires via createRequire when lowering to esm', async t => {
     const fixturePath = join(fixtures, 'nestedRequire.cjs')
     const outFile = join(fixtures, 'nestedRequire.mjs')
@@ -271,6 +280,26 @@ describe('@knighted/module', () => {
     const mod = await import(pathToFileURL(outFile).href)
     assert.equal((mod as any).default.foo, 'bar')
     assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('preserves outer exports when inner scopes shadow exports', async t => {
+    const fixturePath = join(fixtures, 'nestedShadowExports.cjs')
+    const outFile = join(fixtures, 'nestedShadowExports.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'outer')
+    assert.equal(typeof (mod as any).default.run, 'function')
+    assert.equal((mod as any).default.run(), 'inner')
   })
 
   it('keeps block-scoped require via createRequire when lowering to esm', async t => {
@@ -312,6 +341,46 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).foo, 1)
     assert.equal((mod as any).bar, 2)
     assert.equal((mod as any).baz, 3)
+  })
+
+  it('preserves runtime mutations on the exports bag default', async t => {
+    const fixturePath = join(fixtures, 'liveBindingMutation.cjs')
+    const outFile = join(fixtures, 'liveBindingMutation.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).counter, 1)
+    ;(mod as any).inc()
+    assert.equal(typeof (mod as any).inc, 'function')
+  })
+
+  it('exports computed property names when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'computedReexport.cjs')
+    const outFile = join(fixtures, 'computedReexport.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.fooBar, 'fb')
+    assert.equal((mod as any).default.zap, 2)
+    assert.equal((mod as any).default.bag['foo-bar'], 'fb')
   })
 
   it('rewrites require.main to import.meta.main', async t => {

@@ -3,7 +3,7 @@
 ## Scope
 
 - Translates ESM syntax to CommonJS when `target: 'commonjs'` with `transformSyntax` enabled.
-- Assumes Node 20.11+ runtime with `__filename`/`__dirname` shims supplied by the host.
+- Assumes Node 22.21+ runtime with `__filename`/`__dirname` shims supplied by the host (matches package engines).
 - Keeps optional live-binding behavior via `liveBindings` (strict/loose/off).
 - Top-level await (TLA) handling is controlled by `topLevelAwait: 'error' | 'wrap' | 'preserve'` when lowering to CommonJS.
 - Optional import.meta.main gating via `importMetaMain: 'shim' | 'warn' | 'error'`.

@@ -10,13 +10,13 @@ import { scopeNodes } from './utils/scopeNodes.js'
 
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
-  const ext = extname(filename)
+  const ext = extname(filename).toLowerCase()
 
-  if (ext.endsWith('.js')) {
+  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
     return 'js'
   }
 
-  if (ext.endsWith('.ts')) {
+  if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
     return 'ts'
   }
 
@@ -276,6 +276,14 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
           const isVarDeclarationInGlobalScope =
             identifier.isVarDeclarationInGlobalScope(ancestors)
 
+          const parent = ancestors[ancestors.length - 2]
+          const grandParent = ancestors[ancestors.length - 3]
+          const hoistSafe =
+            parent.type === 'FunctionDeclaration' ||
+            (parent.type === 'VariableDeclarator' &&
+              grandParent?.type === 'VariableDeclaration' &&
+              grandParent.kind === 'var')
+
           if (
             isModuleScope ||
             isClassOrFuncDeclaration ||
@@ -284,7 +292,7 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
             meta.declare.push(node)
 
             // Check for hoisted reads
-            if (hoisting && globalReads.has(name)) {
+            if (hoisting && hoistSafe && globalReads.has(name)) {
               const reads = globalReads.get(name)
 
               if (reads) {
