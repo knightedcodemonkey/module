@@ -49,8 +49,9 @@ const traverse = async (
   }
 
   if (skipDepth === -1 || depth < skipDepth) {
+    const fields = node as unknown as Record<string, unknown>
     for (const key of keys) {
-      const child = (node as Record<string, unknown>)[key]
+      const child = fields[key]
 
       if (Array.isArray(child)) {
         for (const nested of child) {
