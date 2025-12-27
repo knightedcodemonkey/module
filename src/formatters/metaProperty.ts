@@ -38,6 +38,9 @@ export const metaProperty = (
            */
           src.update(parent.start, parent.end, 'require.resolve')
           break
+        case 'main':
+          src.update(parent.start, parent.end, 'process.argv[1] === __filename')
+          break
       }
     }
   }

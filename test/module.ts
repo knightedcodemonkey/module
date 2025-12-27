@@ -3,12 +3,14 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
 import { rm, stat, writeFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
 
 import { transform } from '../src/module.js'
 
 const fixtures = resolve(import.meta.dirname, 'fixtures')
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const isValidFilename = async (filename: string) => {
   let stats: Stats
 
@@ -205,6 +207,61 @@ describe('@knighted/module', () => {
     })
   })
 
+  const transformEsmToCjs = async (t: any, file: string) => {
+    const fixturePath = join(fixtures, file)
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const exportsObj = requireCjs(outFile)
+
+    return { exportsObj, result }
+  }
+
+  it('lowers default import with interop when targeting commonjs', async t => {
+    const { exportsObj, result } = await transformEsmToCjs(t, 'esmDefault.mjs')
+
+    assert.equal(exportsObj.default, 'default-val')
+    assert.equal(exportsObj.foo, 'foo-val')
+    assert.equal(exportsObj.bar, 'bar-val')
+    assert.ok(result.indexOf('__interopDefault') > -1)
+    assert.ok(result.indexOf('exports.__esModule = true') > -1)
+  })
+
+  it('lowers named imports when targeting commonjs', async t => {
+    const { exportsObj } = await transformEsmToCjs(t, 'esmNamed.mjs')
+
+    assert.equal(exportsObj.foo, 'foo-val')
+    assert.equal(exportsObj.baz, 'bar-val')
+  })
+
+  it('lowers namespace imports when targeting commonjs', async t => {
+    const { exportsObj } = await transformEsmToCjs(t, 'esmNamespace.mjs')
+
+    assert.equal(exportsObj.ns.default, 'default-val')
+    assert.equal(exportsObj.ns.foo, 'foo-val')
+    assert.equal(exportsObj.ns.bar, 'bar-val')
+  })
+
+  it('preserves re-exports and live bindings from commonjs sources', async t => {
+    const { exportsObj } = await transformEsmToCjs(t, 'esmReexport.mjs')
+
+    assert.equal(exportsObj.renamed, 'foo-val')
+
+    const first = exportsObj.live
+    await delay(30)
+    const second = exportsObj.live
+
+    assert.ok(second > first)
+  })
+
   it('transforms import.meta', async t => {
     const result = await transform(join(fixtures, 'import.meta.mjs'), {
       target: 'commonjs',
@@ -306,8 +363,18 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it('transforms es module globals to commonjs globals', async () => {
-    const result = await transform(join(fixtures, 'file.mjs'), { target: 'commonjs' })
+  it('transforms es module globals to commonjs globals', async t => {
+    const fixturePath = join(fixtures, 'file.mjs')
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, 'file.out.cjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
 
     assert.equal(result.indexOf('import.meta.url'), -1)
     assert.equal(result.indexOf('import.meta.filename'), -1)
@@ -338,15 +405,26 @@ describe('@knighted/module', () => {
     assert.ok(result.indexOf('{}') > -1)
   })
 
-  it('updates specifiers when option enabled', async () => {
-    const result = await transform(join(fixtures, 'specifier.mjs'), {
+  it('updates specifiers when option enabled', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'specifier.mjs')
+    const result = await transform(fixturePath, {
       target: 'commonjs',
       rewriteSpecifier: '.js',
     })
-    const cjsResult = await transform(join(fixtures, 'specifier.cjs'), {
+    const outFile = join(specifierRoot, 'specifier.out.cjs')
+    const cjsResult = await transform(join(specifierRoot, 'specifier.cjs'), {
       target: 'module',
       rewriteSpecifier: '.mjs',
     })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
 
     assert.equal((result.match(/\.\/file\.js/g) ?? []).length, 6)
     assert.equal((result.match(/require\.resolve\('\.\/file\.js'\)/g) ?? []).length, 2)
@@ -371,6 +449,9 @@ describe('@knighted/module', () => {
 
     assert.equal(await isValidFilename(mjs), true)
     assert.equal(await isValidFilename(cjs), true)
+
+    const { status: statusCjs } = spawnSync('node', [cjs], { stdio: 'inherit' })
+    assert.equal(statusCjs, 0)
 
     // When option `modules` is complete
     /*
