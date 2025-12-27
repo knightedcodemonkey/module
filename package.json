@@ -27,7 +27,7 @@
     "#formatters/*.js": "./src/formatters/*.js"
   },
   "engines": {
-    "node": ">=22.21.1"
+    "node": ">=22.21.1 <23 || >=24 <25"
   },
   "engineStrict": true,
   "scripts": {

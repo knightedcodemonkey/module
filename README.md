@@ -22,7 +22,7 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 
 ## Requirements
 
-- Node >= 22.21.1
+- Node 22 or 24 (tested on 22.21.1 and 24.11.1)
 
 ## Install
 
