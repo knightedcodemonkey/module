@@ -33,6 +33,8 @@ jobs:
           path: npm-debug.log
       - name: Lint
         run: npm run lint
+      - name: Type Check
+        run: npm run check-types
       - name: Test
         run: npm test
       - name: Report Coverage
