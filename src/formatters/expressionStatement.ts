@@ -40,7 +40,9 @@ export const expressionStatement = (
       const { start, end } = node
       const name = node.expression.name
 
-      void start; void end; void name;
+      void start
+      void end
+      void name
     }
   }
 }

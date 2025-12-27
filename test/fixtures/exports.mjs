@@ -1,4 +1,4 @@
-let __exports = {};
+let __exports = {}
 __exports
 
 const filename = __exports
