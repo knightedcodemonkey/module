@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "Transforms differences between ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -40,7 +40,8 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
     "build": "npm run build:types && npm run build:dual",
-    "prepack": "npm run build"
+    "prepack": "npm run build && node scripts/setImportsToDist.js",
+    "postpack": "node scripts/restoreImportsToSrc.js"
   },
   "keywords": [
     "transform",
