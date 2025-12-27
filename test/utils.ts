@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 
 import { parse } from '#parse'
 import { collectModuleIdentifiers } from '#utils/identifiers.js'
+import { getLangFromExt } from '#utils/lang.js'
 
 // Use fixtures to more easily track character offsets and line numbers in test cases.
 const fixtures = resolve(import.meta.dirname, 'fixtures')
@@ -189,5 +190,26 @@ describe('collectModuleIdentifiers', () => {
 
     // Ensure no reads got captured as module-scope hoists
     assert.deepEqual(funcReads, [])
+  })
+})
+
+describe('getLangFromExt', () => {
+  it('returns language for js-like extensions', () => {
+    assert.equal(getLangFromExt('file.js'), 'js')
+    assert.equal(getLangFromExt('file.mjs'), 'js')
+  })
+
+  it('returns language for ts-like extensions', () => {
+    assert.equal(getLangFromExt('file.ts'), 'ts')
+    assert.equal(getLangFromExt('file.d.ts'), 'ts')
+  })
+
+  it('returns language for tsx/jsx extensions', () => {
+    assert.equal(getLangFromExt('file.tsx'), 'tsx')
+    assert.equal(getLangFromExt('file.jsx'), 'jsx')
+  })
+
+  it('returns undefined for unknown extensions', () => {
+    assert.equal(getLangFromExt('file.txt'), undefined)
   })
 })

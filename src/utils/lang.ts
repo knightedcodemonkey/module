@@ -4,13 +4,13 @@ import type { Specifier } from '@knighted/specifier'
 // Determine language from filename extension for specifier rewrite.
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
-  const ext = extname(filename)
+  const ext = extname(filename).toLowerCase()
 
-  if (ext.endsWith('.js')) {
+  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
     return 'js'
   }
 
-  if (ext.endsWith('.ts')) {
+  if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
     return 'ts'
   }
 
