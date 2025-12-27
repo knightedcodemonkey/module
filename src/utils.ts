@@ -5,8 +5,18 @@ import type { Node } from 'oxc-parser'
 import type { Specifier } from '@knighted/specifier'
 
 import type { IdentMeta, SpannedNode, Scope, CjsExport } from './types.js'
-import { scopes as scopeNodes } from './helpers/scope.js'
 import { identifier } from './helpers/identifier.js'
+
+const scopeNodes = [
+  'BlockStatement',
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+  'ClassBody',
+  'StaticBlock',
+]
 
 type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
 const getLangFromExt = (filename: string): UpdateSrcLang => {
