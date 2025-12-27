@@ -1,7 +1,9 @@
 {
   "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**"],
+  "plugins": ["eslint", "typescript", "unicorn", "import", "oxc", "node"],
   "rules": {
-    "no-console": "error"
+    "no-console": "error",
+    "unicorn/filename-case": ["error", { "case": "camelCase" }]
   },
   "overrides": [
     {

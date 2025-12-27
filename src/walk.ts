@@ -1,6 +1,12 @@
 import type { Node } from 'oxc-parser'
 import { visitorKeys } from 'oxc-parser'
 
+/**
+ * Using visitorKeys instead of oxc Visitor to keep
+ * an ancestor-aware enter/leave API with this.skip()
+ * without per-node method boilerplate.
+ */
+
 type AncestorContext = {
   skip: () => void
 }
@@ -16,6 +22,10 @@ type WalkVisitor = {
 }
 
 let skipDepth = -1
+
+const isNodeLike = (value: unknown): value is Node => {
+  return Boolean(value && typeof value === 'object' && 'type' in value)
+}
 
 const traverse = async (
   node: Node,
@@ -40,15 +50,15 @@ const traverse = async (
 
   if (skipDepth === -1 || depth < skipDepth) {
     for (const key of keys) {
-      const child = (node as any)[key]
+      const child = (node as Record<string, unknown>)[key]
 
       if (Array.isArray(child)) {
         for (const nested of child) {
-          if (nested && typeof nested.type === 'string') {
+          if (isNodeLike(nested)) {
             await traverse(nested, visitors, ancestors, depth + 1)
           }
         }
-      } else if (child && typeof child.type === 'string') {
+      } else if (isNodeLike(child)) {
         await traverse(child, visitors, ancestors, depth + 1)
       }
     }
