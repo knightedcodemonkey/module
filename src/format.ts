@@ -12,6 +12,301 @@ import { collectModuleIdentifiers } from '#utils/identifiers.js'
 import { isIdentifierName } from '#helpers/identifier.js'
 import { ancestorWalk } from '#walk'
 
+const isValidIdent = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
+
+const exportAssignment = (
+  name: string,
+  expr: string,
+  live: 'strict' | 'loose' | 'off',
+) => {
+  const prop = isValidIdent(name) ? `.${name}` : `[${JSON.stringify(name)}]`
+  if (live === 'strict') {
+    const key = JSON.stringify(name)
+    return `Object.defineProperty(exports, ${key}, { enumerable: true, get: () => ${expr} });`
+  }
+  return `exports${prop} = ${expr};`
+}
+
+const defaultInteropName = '__interopDefault'
+const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModule ? mod.default : mod);\n`
+
+const hasTopLevelAwait = (program: any) => {
+  let found = false
+
+  const walkNode = (node: any, inFunction: boolean) => {
+    if (found) return
+
+    switch (node.type) {
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+      case 'ClassDeclaration':
+      case 'ClassExpression':
+        inFunction = true
+        break
+    }
+
+    if (!inFunction && node.type === 'AwaitExpression') {
+      found = true
+      return
+    }
+
+    const keys = Object.keys(node)
+    for (const key of keys) {
+      const value = (node as any)[key]
+      if (!value) continue
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item && typeof item === 'object') {
+            walkNode(item, inFunction)
+            if (found) return
+          }
+        }
+      } else if (value && typeof value === 'object') {
+        walkNode(value, inFunction)
+        if (found) return
+      }
+    }
+  }
+
+  walkNode(program, false)
+  return found
+}
+
+const lowerEsmToCjs = (
+  program: any,
+  code: MagicString,
+  opts: FormatterOptions,
+  containsTopLevelAwait: boolean,
+) => {
+  const live = opts.liveBindings ?? 'strict'
+  const importTransforms: ImportTransform[] = []
+  const exportTransforms: ExportTransform[] = []
+  let needsInterop = false
+  let importIndex = 0
+
+  for (const node of program.body as any[]) {
+    if (node.type === 'ImportDeclaration') {
+      const srcLiteral = code.slice(node.source.start, node.source.end)
+      const specifiers = node.specifiers ?? []
+      const defaultSpec = specifiers.find((s: any) => s.type === 'ImportDefaultSpecifier')
+      const namespaceSpec = specifiers.find(
+        (s: any) => s.type === 'ImportNamespaceSpecifier',
+      )
+      const namedSpecs = specifiers.filter((s: any) => s.type === 'ImportSpecifier')
+
+      // Side-effect import
+      if (!specifiers.length) {
+        importTransforms.push({
+          start: node.start,
+          end: node.end,
+          code: `require(${srcLiteral});\n`,
+          needsInterop: false,
+        })
+        continue
+      }
+
+      const modIdent = `__mod${importIndex++}`
+      const lines: string[] = []
+
+      lines.push(`const ${modIdent} = require(${srcLiteral});`)
+
+      if (namespaceSpec) {
+        lines.push(`const ${namespaceSpec.local.name} = ${modIdent};`)
+      }
+
+      if (defaultSpec) {
+        let init = modIdent
+        switch (opts.cjsDefault) {
+          case 'module-exports':
+            init = modIdent
+            break
+          case 'none':
+            init = `${modIdent}.default`
+            break
+          case 'auto':
+          default:
+            init = `${defaultInteropName}(${modIdent})`
+            needsInterop = true
+            break
+        }
+        lines.push(`const ${defaultSpec.local.name} = ${init};`)
+      }
+
+      if (namedSpecs.length) {
+        const pairs = namedSpecs.map((s: any) => {
+          const imported = s.imported.name
+          const local = s.local.name
+          return imported === local ? imported : `${imported}: ${local}`
+        })
+        lines.push(`const { ${pairs.join(', ')} } = ${modIdent};`)
+      }
+
+      importTransforms.push({
+        start: node.start,
+        end: node.end,
+        code: `${lines.join('\n')}\n`,
+        needsInterop,
+      })
+    }
+
+    if (node.type === 'ExportNamedDeclaration') {
+      // Handle declaration exports
+      if (node.declaration) {
+        const decl = node.declaration
+        const declSrc = code.slice(decl.start, decl.end)
+        const exportedNames: string[] = []
+
+        if (decl.type === 'VariableDeclaration') {
+          for (const d of decl.declarations) {
+            if (d.id.type === 'Identifier') {
+              exportedNames.push(d.id.name)
+            }
+          }
+        } else if ((decl as any).id?.type === 'Identifier') {
+          exportedNames.push((decl as any).id.name)
+        }
+
+        const exportLines = exportedNames.map(name =>
+          exportAssignment(name, name, live as any),
+        )
+
+        exportTransforms.push({
+          start: node.start,
+          end: node.end,
+          code: `${declSrc}\n${exportLines.join('\n')}\n`,
+        })
+        continue
+      }
+
+      // Handle re-export or local specifiers
+      if (node.specifiers?.length) {
+        if (node.source) {
+          const srcLiteral = code.slice(node.source.start, node.source.end)
+          const modIdent = `__mod${importIndex++}`
+          const lines = [`const ${modIdent} = require(${srcLiteral});`]
+
+          for (const spec of node.specifiers) {
+            if (spec.type !== 'ExportSpecifier') continue
+            const exported = spec.exported.name
+            const imported = spec.local.name
+
+            let rhs = `${modIdent}.${imported}`
+            if (imported === 'default') {
+              rhs = `${defaultInteropName}(${modIdent})`
+              needsInterop = true
+            }
+
+            lines.push(exportAssignment(exported, rhs, live as any))
+          }
+
+          exportTransforms.push({
+            start: node.start,
+            end: node.end,
+            code: `${lines.join('\n')}\n`,
+            needsInterop,
+          })
+        } else {
+          const lines: string[] = []
+          for (const spec of node.specifiers) {
+            if (spec.type !== 'ExportSpecifier') continue
+            const exported = spec.exported.name
+            const local = spec.local.name
+            lines.push(exportAssignment(exported, local, live as any))
+          }
+          exportTransforms.push({
+            start: node.start,
+            end: node.end,
+            code: `${lines.join('\n')}\n`,
+          })
+        }
+      }
+    }
+
+    if (node.type === 'ExportDefaultDeclaration') {
+      const decl = node.declaration
+      const useExportsObject = containsTopLevelAwait && opts.topLevelAwait !== 'error'
+      if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
+        if (decl.id?.name) {
+          const declSrc = code.slice(decl.start, decl.end)
+          const assign = useExportsObject
+            ? `exports.default = ${decl.id.name};`
+            : `module.exports = ${decl.id.name};`
+          exportTransforms.push({
+            start: node.start,
+            end: node.end,
+            code: `${declSrc}\n${assign}\n`,
+          })
+        } else {
+          const declSrc = code.slice(decl.start, decl.end)
+          const assign = useExportsObject
+            ? `exports.default = ${declSrc};`
+            : `module.exports = ${declSrc};`
+          exportTransforms.push({
+            start: node.start,
+            end: node.end,
+            code: `${assign}\n`,
+          })
+        }
+      } else {
+        const exprSrc = code.slice(decl.start, decl.end)
+        const assign = useExportsObject
+          ? `exports.default = ${exprSrc};`
+          : `module.exports = ${exprSrc};`
+        exportTransforms.push({
+          start: node.start,
+          end: node.end,
+          code: `${assign}\n`,
+        })
+      }
+    }
+
+    if (node.type === 'ExportAllDeclaration') {
+      const srcLiteral = code.slice(node.source.start, node.source.end)
+      if ((node as any).exported) {
+        const exported = (node as any).exported.name
+        const modIdent = `__mod${importIndex++}`
+        const lines = [
+          `const ${modIdent} = require(${srcLiteral});`,
+          exportAssignment(exported, modIdent, live as any),
+        ]
+        exportTransforms.push({
+          start: node.start,
+          end: node.end,
+          code: `${lines.join('\n')}\n`,
+        })
+      } else {
+        const modIdent = `__mod${importIndex++}`
+        const lines = [`const ${modIdent} = require(${srcLiteral});`]
+        const loop = `for (const k in ${modIdent}) {\n  if (k === 'default') continue;\n  if (!Object.prototype.hasOwnProperty.call(${modIdent}, k)) continue;\n  Object.defineProperty(exports, k, { enumerable: true, get: () => ${modIdent}[k] });\n}`
+        lines.push(loop)
+        exportTransforms.push({
+          start: node.start,
+          end: node.end,
+          code: `${lines.join('\n')}\n`,
+        })
+      }
+    }
+  }
+
+  return { importTransforms, exportTransforms, needsInterop }
+}
+
+type ImportTransform = {
+  start: number
+  end: number
+  code: string
+  needsInterop: boolean
+}
+
+type ExportTransform = {
+  start: number
+  end: number
+  code: string
+  needsInterop?: boolean
+}
+
 /**
  * Node added support for import.meta.main.
  * Added in: v24.2.0, v22.18.0
@@ -28,6 +323,22 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
   await collectModuleIdentifiers(ast.program)
+  const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
+  const containsTopLevelAwait = shouldCheckTopLevelAwait
+    ? hasTopLevelAwait(ast.program)
+    : false
+
+  const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
+  let pendingCjsTransforms: {
+    transforms: Array<ImportTransform | ExportTransform>
+    needsInterop: boolean
+  } | null = null
+
+  if (shouldLowerCjs && opts.topLevelAwait === 'error' && containsTopLevelAwait) {
+    throw new Error(
+      'Top-level await is not supported when targeting CommonJS (set topLevelAwait to "wrap" or "preserve" to override).',
+    )
+  }
 
   if (opts.target === 'module' && opts.transformSyntax) {
     /**
@@ -149,6 +460,32 @@ void import.meta.filename;
     },
   })
 
+  if (shouldLowerCjs) {
+    const { importTransforms, exportTransforms, needsInterop } = lowerEsmToCjs(
+      ast.program,
+      code,
+      opts,
+      containsTopLevelAwait,
+    )
+
+    pendingCjsTransforms = {
+      transforms: [...importTransforms, ...exportTransforms].sort(
+        (a, b) => a.start - b.start,
+      ),
+      needsInterop,
+    }
+  }
+
+  if (pendingCjsTransforms) {
+    for (const t of pendingCjsTransforms.transforms) {
+      code.overwrite(t.start, t.end, t.code)
+    }
+
+    if (pendingCjsTransforms.needsInterop) {
+      code.prepend(`${interopHelper}exports.__esModule = true;\n`)
+    }
+  }
+
   if (opts.target === 'module' && opts.transformSyntax && exportTable) {
     const isValidExportName = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
     const asExportName = (name: string) =>
@@ -186,6 +523,19 @@ void import.meta.filename;
     if (lines.length) {
       code.append(`\n${lines.join('\n')}\n`)
     }
+  }
+
+  if (opts.target === 'commonjs' && opts.transformSyntax && containsTopLevelAwait) {
+    const body = code.toString()
+
+    if (opts.topLevelAwait === 'wrap') {
+      const tlaPromise = `const __tla = (async () => {\n${body}\nreturn module.exports;\n})();\n`
+      const setPromise = `const __setTla = target => {\n  if (!target) return;\n  const type = typeof target;\n  if (type !== 'object' && type !== 'function') return;\n  target.__tla = __tla;\n};\n`
+      const attach = `__setTla(module.exports);\n__tla.then(resolved => __setTla(resolved), err => { throw err; });\n`
+      return `${tlaPromise}${setPromise}${attach}`
+    }
+
+    return `;(async () => {\n${body}\n})();\n`
   }
 
   return code.toString()

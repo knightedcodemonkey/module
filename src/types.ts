@@ -25,6 +25,7 @@ export type ModuleOptions = {
   rewriteSpecifier?: RewriteSpecifier
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
+  importMetaMain?: 'shim' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
