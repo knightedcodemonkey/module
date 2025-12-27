@@ -1,33 +1,11 @@
-import { extname } from 'node:path'
 import { ancestorWalk } from './walk.js'
 
 import type { Node } from 'oxc-parser'
-import type { Specifier } from '@knighted/specifier'
 
 import type { IdentMeta, SpannedNode, Scope, CjsExport } from './types.js'
 import { identifier } from './helpers/identifier.js'
 import { scopeNodes } from './utils/scopeNodes.js'
 
-type UpdateSrcLang = Parameters<Specifier['updateSrc']>[1]
-const getLangFromExt = (filename: string): UpdateSrcLang => {
-  const ext = extname(filename).toLowerCase()
-
-  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
-    return 'js'
-  }
-
-  if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
-    return 'ts'
-  }
-
-  if (ext === '.tsx') {
-    return 'tsx'
-  }
-
-  if (ext === '.jsx') {
-    return 'jsx'
-  }
-}
 const isValidUrl = (url: string) => {
   try {
     new URL(url)
@@ -337,7 +315,6 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
 }
 
 export {
-  getLangFromExt,
   isValidUrl,
   collectScopeIdentifiers,
   collectModuleIdentifiers,

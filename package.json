@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Transforms differences between ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -78,7 +78,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@knighted/specifier": "^2.0.9",
     "magic-string": "^0.30.21",
     "node-module-type": "^1.0.4",
     "oxc-parser": "^0.105.0",
