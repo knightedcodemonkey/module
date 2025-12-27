@@ -74,7 +74,12 @@ const hasTopLevelAwait = (program: any) => {
   return found
 }
 
-const lowerEsmToCjs = (program: any, code: MagicString, opts: FormatterOptions) => {
+const lowerEsmToCjs = (
+  program: any,
+  code: MagicString,
+  opts: FormatterOptions,
+  containsTopLevelAwait: boolean,
+) => {
   const live = opts.liveBindings ?? 'strict'
   const importTransforms: ImportTransform[] = []
   const exportTransforms: ExportTransform[] = []
@@ -221,28 +226,38 @@ const lowerEsmToCjs = (program: any, code: MagicString, opts: FormatterOptions) 
 
     if (node.type === 'ExportDefaultDeclaration') {
       const decl = node.declaration
+      const useExportsObject = containsTopLevelAwait && opts.topLevelAwait !== 'error'
       if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
         if (decl.id?.name) {
           const declSrc = code.slice(decl.start, decl.end)
+          const assign = useExportsObject
+            ? `exports.default = ${decl.id.name};`
+            : `module.exports = ${decl.id.name};`
           exportTransforms.push({
             start: node.start,
             end: node.end,
-            code: `${declSrc}\nmodule.exports = ${decl.id.name};\n`,
+            code: `${declSrc}\n${assign}\n`,
           })
         } else {
           const declSrc = code.slice(decl.start, decl.end)
+          const assign = useExportsObject
+            ? `exports.default = ${declSrc};`
+            : `module.exports = ${declSrc};`
           exportTransforms.push({
             start: node.start,
             end: node.end,
-            code: `module.exports = ${declSrc};\n`,
+            code: `${assign}\n`,
           })
         }
       } else {
         const exprSrc = code.slice(decl.start, decl.end)
+        const assign = useExportsObject
+          ? `exports.default = ${exprSrc};`
+          : `module.exports = ${exprSrc};`
         exportTransforms.push({
           start: node.start,
           end: node.end,
-          code: `module.exports = ${exprSrc};\n`,
+          code: `${assign}\n`,
         })
       }
     }
@@ -308,32 +323,21 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
   await collectModuleIdentifiers(ast.program)
+  const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
+  const containsTopLevelAwait = shouldCheckTopLevelAwait
+    ? hasTopLevelAwait(ast.program)
+    : false
 
-  if (opts.target === 'commonjs' && opts.transformSyntax) {
-    if (opts.topLevelAwait === 'error' && hasTopLevelAwait(ast.program)) {
-      throw new Error(
-        'Top-level await is not supported when targeting CommonJS (set topLevelAwait to "wrap" or "preserve" to override).',
-      )
-    }
+  const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
+  let pendingCjsTransforms: {
+    transforms: Array<ImportTransform | ExportTransform>
+    needsInterop: boolean
+  } | null = null
 
-    const { importTransforms, exportTransforms, needsInterop } = lowerEsmToCjs(
-      ast.program,
-      code,
-      opts,
+  if (shouldLowerCjs && opts.topLevelAwait === 'error' && containsTopLevelAwait) {
+    throw new Error(
+      'Top-level await is not supported when targeting CommonJS (set topLevelAwait to "wrap" or "preserve" to override).',
     )
-
-    // Apply transforms in source order
-    const allTransforms = [...importTransforms, ...exportTransforms].sort(
-      (a, b) => a.start - b.start,
-    )
-
-    for (const t of allTransforms) {
-      code.overwrite(t.start, t.end, t.code)
-    }
-
-    if (needsInterop) {
-      code.prepend(`${interopHelper}exports.__esModule = true;\n`)
-    }
   }
 
   if (opts.target === 'module' && opts.transformSyntax) {
@@ -456,6 +460,32 @@ void import.meta.filename;
     },
   })
 
+  if (shouldLowerCjs) {
+    const { importTransforms, exportTransforms, needsInterop } = lowerEsmToCjs(
+      ast.program,
+      code,
+      opts,
+      containsTopLevelAwait,
+    )
+
+    pendingCjsTransforms = {
+      transforms: [...importTransforms, ...exportTransforms].sort(
+        (a, b) => a.start - b.start,
+      ),
+      needsInterop,
+    }
+  }
+
+  if (pendingCjsTransforms) {
+    for (const t of pendingCjsTransforms.transforms) {
+      code.overwrite(t.start, t.end, t.code)
+    }
+
+    if (pendingCjsTransforms.needsInterop) {
+      code.prepend(`${interopHelper}exports.__esModule = true;\n`)
+    }
+  }
+
   if (opts.target === 'module' && opts.transformSyntax && exportTable) {
     const isValidExportName = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
     const asExportName = (name: string) =>
@@ -493,6 +523,19 @@ void import.meta.filename;
     if (lines.length) {
       code.append(`\n${lines.join('\n')}\n`)
     }
+  }
+
+  if (opts.target === 'commonjs' && opts.transformSyntax && containsTopLevelAwait) {
+    const body = code.toString()
+
+    if (opts.topLevelAwait === 'wrap') {
+      const tlaPromise = `const __tla = (async () => {\n${body}\nreturn module.exports;\n})();\n`
+      const setPromise = `const __setTla = target => {\n  if (!target) return;\n  const type = typeof target;\n  if (type !== 'object' && type !== 'function') return;\n  target.__tla = __tla;\n};\n`
+      const attach = `__setTla(module.exports);\n__tla.then(resolved => __setTla(resolved), err => { throw err; });\n`
+      return `${tlaPromise}${setPromise}${attach}`
+    }
+
+    return `;(async () => {\n${body}\n})();\n`
   }
 
   return code.toString()

@@ -16,6 +16,7 @@ const defaultOptions = {
   rewriteSpecifier: undefined,
   dirFilename: 'inject',
   importMeta: 'shim',
+  importMetaMain: 'shim',
   requireSource: 'builtin',
   cjsDefault: 'auto',
   topLevelAwait: 'error',

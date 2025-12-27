@@ -262,6 +262,33 @@ describe('@knighted/module', () => {
     assert.ok(second > first)
   })
 
+  it('preserves live re-exports when liveBindings is strict', async t => {
+    const fixturePath = join(fixtures, 'liveReexport.mjs')
+    const outFile = join(fixtures, 'liveReexport.out.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      liveBindings: 'strict',
+    })
+
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = requireCjs(outFile)
+    assert.equal(mod.counter, 0)
+    mod.bump()
+    assert.equal(mod.counter, 1)
+    await delay(30)
+    assert.ok(mod.counter >= 2)
+  })
+
   it('transforms import.meta', async t => {
     const result = await transform(join(fixtures, 'import.meta.mjs'), {
       target: 'commonjs',
@@ -342,6 +369,53 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
+  it('wraps top-level await when targeting commonjs (wrap)', async t => {
+    const fixturePath = join(fixtures, 'topLevelAwait.mjs')
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      topLevelAwait: 'wrap',
+    })
+    const outFile = join(fixtures, 'topLevelAwait.wrap.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const mod = requireCjs(outFile)
+
+    assert.equal(typeof mod.__tla?.then, 'function')
+    await mod.__tla
+    assert.equal(mod.value, 5)
+    assert.equal(mod.default, 3)
+  })
+
+  it('preserves exports when top-level await targeting commonjs (preserve)', async t => {
+    const fixturePath = join(fixtures, 'topLevelAwait.mjs')
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      topLevelAwait: 'preserve',
+    })
+    const outFile = join(fixtures, 'topLevelAwait.preserve.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const mod = requireCjs(outFile)
+
+    await delay(10)
+    assert.equal(mod.value, 5)
+    assert.equal(mod.default, 3)
+  })
+
   it('transforms import.meta.resolve', async t => {
     const result = await transform(join(fixtures, 'import.meta.resolve.mjs'), {
       target: 'commonjs',
@@ -361,6 +435,27 @@ describe('@knighted/module', () => {
 
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
+  })
+
+  it('gates import.meta.main shimming when requested', async t => {
+    const fixturePath = join(fixtures, 'import.meta.main.mjs')
+    const outFile = join(fixtures, 'import.meta.main.cjs')
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      importMetaMain: 'warn',
+    })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.includes('import.meta.main is not supported before Node 22.18/24.2'))
+    assert.ok(result.includes('process.versions.node'))
   })
 
   it('transforms es module globals to commonjs globals', async t => {
