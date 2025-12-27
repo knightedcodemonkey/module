@@ -159,6 +159,9 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
         const { name } = node
         const meta = identifiers.get(name) ?? { declare: [], read: [] }
         const isDeclaration = identifier.isDeclaration(ancestors)
+        const inScope = scopes.some(
+          scope => scope.idents.has(name) || scope.name === name,
+        )
 
         if (
           hoisting &&
@@ -169,7 +172,8 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
           !identifier.isMethodDefinitionKey(ancestors) &&
           !identifier.isMemberKey(ancestors) &&
           !identifier.isPropertyKey(ancestors) &&
-          !identifier.isIife(ancestors)
+          !identifier.isIife(ancestors) &&
+          !inScope
         ) {
           if (globalReads.has(name)) {
             globalReads.get(name)?.push(node)
@@ -208,10 +212,6 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
             identifiers.set(name, meta)
           }
         } else {
-          const inScope = scopes.some(
-            scope => scope.idents.has(name) || scope.name === name,
-          )
-
           if (
             identifiers.has(name) &&
             !inScope &&

@@ -1,6 +1,5 @@
 import type { Node, IdentifierName } from 'oxc-parser'
-
-import { scopes } from './scope.js'
+import { analyze, type Scope as PeriscopicScope } from 'periscopic'
 
 /**
  * Focus exclusively on IdentifierName type as it has the name property,
@@ -13,6 +12,26 @@ const isIdentifierName = (node: Node): node is IdentifierName => {
     node.type === 'Identifier' && typeof node.name === 'string' && node.name !== 'this'
   )
 }
+
+type ScopeContext = {
+  scope: PeriscopicScope
+}
+
+const scopeCache = new WeakMap<Node, ScopeContext>()
+
+const getScopeContext = (program: Node): ScopeContext => {
+  const cached = scopeCache.get(program)
+
+  if (cached) {
+    return cached
+  }
+
+  const { scope } = analyze(program as any)
+  const context = { scope }
+  scopeCache.set(program, context)
+  return context
+}
+
 /**
  * All methods receive the full set of ancestors, which
  * specifically includes the node itself as the last element.
@@ -34,15 +53,7 @@ const identifier = {
   isModuleScope(ancestors: Node[], includeImports = false) {
     const node = ancestors[ancestors.length - 1]
     const parent = ancestors[ancestors.length - 2]
-    /**
-     * Every Identifier node has a parent node, so start from
-     * the parent when checking ancestors for a scope node.
-     */
-    const noScopeAncestors = () => {
-      return ancestors.slice(0, -1).every(ancestor => {
-        return !scopes.includes(ancestor.type)
-      })
-    }
+    const program = ancestors[0]
 
     if (
       !identifier.isNamed(node) ||
@@ -62,32 +73,26 @@ const identifier = {
       return includeImports && parent.local.name === node.name
     }
 
-    if (parent.type === 'Property' && parent.key === node) {
-      const keyIsValue =
-        identifier.isNamed(parent.value) && parent.value.name === node.name
-      const isAssignmentPatternTarget =
-        parent.value.type === 'AssignmentPattern' &&
-        identifier.isNamed(parent.value.left) &&
-        parent.value.left.name === node.name
-
-      return (
-        (parent.computed || keyIsValue || isAssignmentPatternTarget) && noScopeAncestors()
-      )
+    if (parent.type === 'Property' && parent.key === node && !parent.computed) {
+      return false
     }
 
-    if (parent.type === 'MemberExpression' && parent.property === node) {
-      return parent.computed && noScopeAncestors()
+    if (
+      parent.type === 'MemberExpression' &&
+      parent.property === node &&
+      !parent.computed
+    ) {
+      return false
     }
 
-    /**
-     * If the parent is a Function or Class expression,
-     * the identifier is not in module scope.
-     */
-    return (
-      parent.type !== 'FunctionExpression' &&
-      parent.type !== 'ClassExpression' &&
-      noScopeAncestors()
-    )
+    const { scope: rootScope } = getScopeContext(program)
+    const owner = rootScope.find_owner(node.name)
+
+    if (!owner) {
+      return node.name === 'exports'
+    }
+
+    return owner === rootScope
   },
 
   isMemberExpressionRoot(ancestors: Node[]) {

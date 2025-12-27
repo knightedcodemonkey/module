@@ -1,4 +1,5 @@
 let __exports = {};
+void import.meta.filename;
 __exports
 
 const filename = __exports
@@ -27,15 +28,15 @@ class Foo {
 }
 new Foo().exports
 
-function bar(exports) {
-  const fn = exports
+function bar(__exports) {
+  const fn = __exports
 
   return fn
 }
-const foo = exports => {
-  const fn = exports
+const foo = __exports => {
+  const fn = __exports
   const other = __exports.other
-  return `${exports}${fn}${other}`
+  return `${__exports}${fn}${other}`
 }
 ;(arg => {
   return arg

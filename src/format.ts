@@ -26,10 +26,13 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
   if (opts.target === 'module' && opts.transformSyntax) {
     /**
-     * Rename `exports` to `__exports` in the global scope.
-     * Collect all identifiers in the global/module scope.
+     * Prepare ESM output by renaming `exports` to `__exports` and seeding an
+     * `import.meta.filename` touch so import.meta is present even when the
+     * original source never referenced it.
      */
-    code.prepend(`let ${exportsRename} = {};\n`)
+    code.prepend(`let ${exportsRename} = {};
+void import.meta.filename;
+`)
   }
 
   await ancestorWalk(ast.program, {

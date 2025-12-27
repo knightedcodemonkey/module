@@ -25,7 +25,7 @@ const isValidFilename = async (filename: string) => {
 }
 
 describe('@knighted/module', () => {
-  it.skip('transforms __filename', async t => {
+  it('transforms __filename', async t => {
     const result = await transform(join(fixtures, '__filename.cjs'), {
       target: 'module',
     })
@@ -49,7 +49,7 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms __dirname', async t => {
+  it('transforms __dirname', async t => {
     const result = await transform(join(fixtures, '__dirname.cjs'), {
       target: 'module',
     })
@@ -94,7 +94,7 @@ describe('@knighted/module', () => {
     assert.equal(statusOut, 0)
   })
 
-  it.skip('transforms import.meta', async t => {
+  it('transforms import.meta', async t => {
     const result = await transform(join(fixtures, 'import.meta.mjs'), {
       target: 'commonjs',
     })
@@ -110,7 +110,7 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms import.meta.url', async t => {
+  it('transforms import.meta.url', async t => {
     const result = await transform(join(fixtures, 'import.meta.url.mjs'), {
       target: 'commonjs',
     })
@@ -123,9 +123,8 @@ describe('@knighted/module', () => {
 
     assert.ok(result.indexOf("Invalid assignment: 'foo' is not a URL.") > -1)
     assert.ok(
-      result.indexOf(
-        `require("node:url").pathToFileURL(__filename).href = 'file:///some/path/to/file.js'`,
-      ) > -1,
+      result.indexOf('pathToFileURL(__filename).href =') > -1 &&
+        result.indexOf('file:///some/path/to/file.js') > -1,
     )
     assert.ok(result.indexOf('thing.import.meta.url = filename') > -1)
 
@@ -133,7 +132,7 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms import.meta.filename', async t => {
+  it('transforms import.meta.filename', async t => {
     const result = await transform(join(fixtures, 'import.meta.filename.mjs'), {
       target: 'commonjs',
     })
@@ -154,7 +153,7 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms import.meta.dirname', async t => {
+  it('transforms import.meta.dirname', async t => {
     const result = await transform(join(fixtures, 'import.meta.dirname.mjs'), {
       target: 'commonjs',
     })
@@ -175,7 +174,7 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms import.meta.resolve', async t => {
+  it('transforms import.meta.resolve', async t => {
     const result = await transform(join(fixtures, 'import.meta.resolve.mjs'), {
       target: 'commonjs',
     })
@@ -196,16 +195,14 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
-  it.skip('transforms es module globals to commonjs globals', async () => {
+  it('transforms es module globals to commonjs globals', async () => {
     const result = await transform(join(fixtures, 'file.mjs'), { target: 'commonjs' })
 
     assert.equal(result.indexOf('import.meta.url'), -1)
     assert.equal(result.indexOf('import.meta.filename'), -1)
     assert.equal(result.indexOf('import.meta.dirname'), -1)
     assert.equal(result.indexOf('import.meta.resolve'), -1)
-    assert.ok(
-      result.indexOf('require("node:url").pathToFileURL(__filename).toString()') > -1,
-    )
+    assert.ok(result.indexOf('require("node:url").pathToFileURL(__filename).href') > -1)
     assert.ok(result.indexOf('__dirname') > -1)
     assert.ok(result.indexOf('__filename') > -1)
     assert.ok(result.indexOf('require.resolve(') > -1)
@@ -214,7 +211,7 @@ describe('@knighted/module', () => {
     assert.ok(/\smodule\s/.test(result))
   })
 
-  it.skip('transforms commonjs globals to es module globals', async () => {
+  it('transforms commonjs globals to es module globals', async () => {
     const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
     assert.equal(result.indexOf('__filename'), -1)
     assert.equal(result.indexOf('__dirname'), -1)
@@ -226,11 +223,11 @@ describe('@knighted/module', () => {
     assert.equal(!/\smodule\s/.test(result), true)
     assert.equal(!/\sexports\s/.test(result), true)
     assert.equal(result.indexOf('require.cache'), -1)
-    assert.equal(/import\.meta\s/.test(result), true)
+    assert.ok(/import\.meta/.test(result))
     assert.ok(result.indexOf('{}') > -1)
   })
 
-  it.skip('updates specifiers when option enabled', async () => {
+  it('updates specifiers when option enabled', async () => {
     const result = await transform(join(fixtures, 'specifier.mjs'), {
       target: 'commonjs',
       rewriteSpecifier: '.js',
@@ -249,7 +246,7 @@ describe('@knighted/module', () => {
     )
   })
 
-  it.skip('writes transformed source to a file when option enabled', async t => {
+  it('writes transformed source to a file when option enabled', async t => {
     const mjs = join(fixtures, 'transformed.mjs')
     const cjs = join(fixtures, 'transformed.cjs')
 

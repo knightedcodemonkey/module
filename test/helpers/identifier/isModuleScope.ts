@@ -9,7 +9,7 @@ import { identifier } from '#helpers/identifier'
 const { isModuleScope } = identifier
 
 describe('isModuleScope', () => {
-  it.skip('finds module scope identifiers', async () => {
+  it('finds module scope identifiers', async () => {
     const ast = parse(
       'file.ts',
       `
@@ -277,7 +277,7 @@ describe('isModuleScope', () => {
   })
 
   describe('while ignoring', () => {
-    it.skip('identifiers inside function scopes', async () => {
+    it('identifiers inside function scopes', async () => {
       const ast = parse(
         'file.ts',
         `
@@ -314,7 +314,7 @@ describe('isModuleScope', () => {
       })
     })
 
-    it.skip('identifiers inside class scopes', async () => {
+    it('identifiers inside class scopes', async () => {
       const ast = parse(
         'file.ts',
         `
@@ -369,7 +369,7 @@ describe('isModuleScope', () => {
       })
     })
 
-    it.skip('identifiers inside block scopes', async () => {
+    it('identifiers inside block scopes', async () => {
       const ast = parse(
         'file.ts',
         `
