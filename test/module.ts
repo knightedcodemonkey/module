@@ -94,6 +94,101 @@ describe('@knighted/module', () => {
     assert.equal(statusOut, 0)
   })
 
+  const exportFixtures: Array<{
+    name: string
+    file: string
+    expect?: Record<string, string | number>
+    verify?: (mod: Record<string, any>) => void
+  }> = [
+    {
+      name: 'exportsComputed',
+      file: 'exportsComputed.cjs',
+      expect: { foo: 'alpha', '42': 'num', bar: 'beta', dyn: 'gamma' },
+    },
+    {
+      name: 'exportsDynamicComputed',
+      file: 'exportsDynamicComputed.cjs',
+      verify: mod => {
+        assert.equal(mod.static, 'ok')
+        assert.equal(Object.prototype.hasOwnProperty.call(mod, 'dyn'), false)
+      },
+    },
+    {
+      name: 'exportsAlias',
+      file: 'exportsAlias.cjs',
+      expect: { foo: 1, bar: 2, baz: 3 },
+    },
+    {
+      name: 'exportsAliasChain',
+      file: 'exportsAliasChain.cjs',
+      expect: { foo: 1, bar: 2 },
+    },
+    {
+      name: 'exportsAssign',
+      file: 'exportsAssign.cjs',
+      verify: mod => {
+        assert.equal(typeof mod.default, 'function')
+        assert.equal(mod.default(), 'ok')
+        assert.equal(mod.extra, 'value')
+      },
+    },
+    {
+      name: 'exportsAugment',
+      file: 'exportsAugment.cjs',
+      verify: mod => {
+        assert.equal(typeof mod.default, 'function')
+        assert.equal(mod.default(), 'ok')
+        assert.equal(mod.extra, 1)
+      },
+    },
+    {
+      name: 'exportsDestructure',
+      file: 'exportsDestructure.cjs',
+      expect: { alpha: 'A', beta: 'B', foo: 1 },
+    },
+    {
+      name: 'exportsObjectAssign',
+      file: 'exportsObjectAssign.cjs',
+      expect: { foo: 'x', bar: 'y', baz: 'z' },
+    },
+  ]
+
+  exportFixtures.forEach(({ name, file, expect, verify }) => {
+    it(`transforms ${name}`, async t => {
+      const fixturePath = join(fixtures, file)
+      const result = await transform(fixturePath, {
+        target: 'module',
+      })
+      const outFile = join(fixtures, `${file.replace('.cjs', '')}.mjs`)
+      const { status: statusIn } = spawnSync('node', [fixturePath], {
+        stdio: 'inherit',
+      })
+
+      t.after(() => {
+        rm(outFile, { force: true })
+      })
+
+      assert.equal(statusIn, 0)
+      await writeFile(outFile, result)
+
+      const { status: statusOut } = spawnSync('node', [outFile], { stdio: 'inherit' })
+      assert.equal(statusOut, 0)
+
+      const exportsObj = await import(outFile)
+
+      if (verify) {
+        verify(exportsObj as any)
+        return
+      }
+
+      if (expect) {
+        Object.entries(expect).forEach(([k, v]) => {
+          assert.equal((exportsObj as any)[k], v)
+        })
+      }
+    })
+  })
+
   it('transforms import.meta', async t => {
     const result = await transform(join(fixtures, 'import.meta.mjs'), {
       target: 'commonjs',
