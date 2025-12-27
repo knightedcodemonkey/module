@@ -798,6 +798,147 @@ describe('@knighted/module', () => {
     )
   })
 
+  it('exports anonymous default function when lowering to commonjs', async () => {
+    const fixturePath = join(fixtures, 'exportDefaultAnon.mjs')
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, 'exportDefaultAnon.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    try {
+      await writeFile(outFile, result)
+      const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+      assert.equal(status, 0)
+      const mod = requireCjs(outFile)
+      assert.equal(typeof mod, 'function')
+      assert.equal(mod(), 'anon')
+    } finally {
+      await rm(outFile, { force: true })
+    }
+  })
+
+  it('handles export namespace all when lowering to commonjs', async () => {
+    const fixturePath = join(fixtures, 'exportNamespaceAll.mjs')
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, 'exportNamespaceAll.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    try {
+      await writeFile(outFile, result)
+      const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+      assert.equal(status, 0)
+      const mod = requireCjs(outFile)
+      assert.equal(mod.bag.esmodule, true)
+      assert.equal(mod.bag.foo, 'bar')
+      assert.equal(typeof mod.bag.obj, 'object')
+    } finally {
+      await rm(outFile, { force: true })
+    }
+  })
+
+  it('respects cjsDefault option when lowering default import', async t => {
+    const fixturePath = join(fixtures, 'esmDefault.mjs')
+    const outFile = join(fixtures, 'esmDefault.cjs')
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      cjsDefault: 'none',
+    })
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const requireCjs = createRequire(import.meta.url)
+    const mod = requireCjs(outFile)
+    assert.equal(mod, 'default-val')
+  })
+
+  it('throws on top-level await when targeting commonjs with error policy', async () => {
+    const fixturePath = join(fixtures, 'tlaError.mjs')
+    await assert.rejects(
+      () => transform(fixturePath, { target: 'commonjs', topLevelAwait: 'error' }),
+      /Top-level await is not supported/i,
+    )
+  })
+
+  it('converts a small commonjs project to esm', async t => {
+    const projectRoot = join(fixtures, 'projects', 'cjs-app')
+    const entry = join(projectRoot, 'index.cjs')
+    const lib = join(projectRoot, 'lib.cjs')
+    const outEntry = join(projectRoot, 'index.mjs')
+    const outLib = join(projectRoot, 'lib.mjs')
+
+    t.after(() => {
+      rm(outEntry, { force: true })
+      rm(outLib, { force: true })
+    })
+
+    const [entryResult, libResult] = await Promise.all([
+      transform(entry, {
+        target: 'module',
+        rewriteSpecifier: '.mjs',
+      }),
+      transform(lib, {
+        target: 'module',
+        rewriteSpecifier: '.mjs',
+      }),
+    ])
+
+    await Promise.all([writeFile(outEntry, entryResult), writeFile(outLib, libResult)])
+
+    const { status } = spawnSync('node', [outEntry], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outEntry).href)
+    const result = (mod as any).main()
+    assert.equal(result.bumped, 3)
+    assert.equal(result.value, 1)
+
+    // Dynamic require path should still work under createRequire fallback
+    const libMod = await import(pathToFileURL(outLib).href)
+    assert.equal(libMod.dynamicLoad('./lib.mjs'), 1)
+  })
+
+  it('converts a small esm project to commonjs with top-level await wrapping', async t => {
+    const projectRoot = join(fixtures, 'projects', 'esm-app')
+    const entry = join(projectRoot, 'index.mjs')
+    const lib = join(projectRoot, 'lib.mjs')
+    const outEntry = join(projectRoot, 'index.cjs')
+    const outLib = join(projectRoot, 'lib.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outEntry, { force: true })
+      rm(outLib, { force: true })
+    })
+
+    const [entryResult, libResult] = await Promise.all([
+      transform(entry, {
+        target: 'commonjs',
+        rewriteSpecifier: '.cjs',
+        topLevelAwait: 'wrap',
+        importMetaMain: 'warn',
+      }),
+      transform(lib, { target: 'commonjs', rewriteSpecifier: '.cjs' }),
+    ])
+
+    await Promise.all([writeFile(outEntry, entryResult), writeFile(outLib, libResult)])
+
+    const { status } = spawnSync('node', [outEntry], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = requireCjs(outEntry)
+    assert.equal(typeof mod.__tla?.then, 'function')
+    await mod.__tla
+    const result = await mod.run()
+    assert.equal(result.sum, 2)
+    assert.ok(result.after >= 1)
+
+    // importMetaMain warn should be embedded in generated code
+    assert.ok(entryResult.includes('import.meta.main is not supported'))
+  })
+
   it('writes transformed source to a file when option enabled', async t => {
     const mjs = join(fixtures, 'transformed.mjs')
     const cjs = join(fixtures, 'transformed.cjs')

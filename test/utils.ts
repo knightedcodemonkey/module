@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 
 import { parse } from '#parse'
 import { collectModuleIdentifiers } from '#utils/identifiers.js'
+import { collectCjsExports } from '#utils/exports.js'
 import { getLangFromExt } from '#utils/lang.js'
 
 // Use fixtures to more easily track character offsets and line numbers in test cases.
@@ -190,6 +191,63 @@ describe('collectModuleIdentifiers', () => {
 
     // Ensure no reads got captured as module-scope hoists
     assert.deepEqual(funcReads, [])
+  })
+})
+
+describe('collectCjsExports', () => {
+  it('collects aliases, literals, getters, and reassignments', async () => {
+    const source = `
+      const alias = exports;
+      const mod = module.exports;
+      const dyn = 'dyn';
+      const num = 42;
+      const tmpl = \`tmpl\`;
+      let local = 1;
+      const getter = function getter() { return local };
+      const getter2 = getter;
+      exports[tmpl] = local;
+      alias.foo = local;
+      mod['bar'] = num;
+      exports[dyn] = 2;
+      module.exports.baz = function baz() {};
+      ({ value: module.exports.qux } = { value: 3 });
+      Object.assign(exports, { assignVal: local, aliasAssign: num });
+      Object.defineProperty(exports, 'dp', { get: getter });
+      Object.defineProperties(module.exports, {
+        multi: { value: num },
+        got: { get: getter2 },
+      });
+      exports.fromLocal = local;
+      local = 5;
+    `
+
+    const ast = parse('file.cjs', source).program
+    const exportsMap = await collectCjsExports(ast)
+
+    const keys = Array.from(exportsMap.keys()).sort()
+    assert.deepEqual(keys, [
+      'aliasAssign',
+      'assignVal',
+      'bar',
+      'baz',
+      'dp',
+      'dyn',
+      'foo',
+      'fromLocal',
+      'got',
+      'multi',
+      'qux',
+      'tmpl',
+    ])
+
+    assert.equal(exportsMap.get('dyn')?.fromIdentifier, undefined)
+    assert.equal(exportsMap.get('foo')?.fromIdentifier, 'local')
+    assert.equal(exportsMap.get('bar')?.via.has('module.exports'), true)
+    assert.equal(exportsMap.get('dp')?.hasGetter, true)
+    assert.equal(exportsMap.get('got')?.hasGetter, true)
+    assert.equal(exportsMap.get('multi')?.hasGetter ?? false, false)
+    assert.equal(exportsMap.get('fromLocal')?.reassignments.length, 1)
+    assert.equal(exportsMap.get('tmpl')?.writes.length ?? 0, 1)
   })
 })
 
