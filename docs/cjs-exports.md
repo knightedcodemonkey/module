@@ -24,4 +24,5 @@
 ## Testing strategy
 
 - Fixtures cover each supported pattern: computed literals, alias chains, destructuring, Object.assign fan-out, overwrite-then-augment sequences, and defineProperty/defineProperties (value + getter). Dynamic non-literal keys have a fixture to verify they remain un-exported.
+- Alias-chain fixture covers `module.exports` aliases plus subsequent `exports` writes to ensure both surfaces stay connected.
 - Each transformed fixture is executed with Node before assertions to catch runtime/syntax issues, then its exports are asserted via ESM import.

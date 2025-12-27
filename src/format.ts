@@ -518,10 +518,25 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       if (
         shouldRaiseEsm &&
         node.type === 'CallExpression' &&
-        isRequireCall(node, shadowedBindings) &&
-        !isStaticRequire(node, shadowedBindings)
+        isRequireCall(node, shadowedBindings)
       ) {
-        needsCreateRequire = true
+        const isStatic = isStaticRequire(node, shadowedBindings)
+        const parent = ancestors[ancestors.length - 2] ?? null
+        const grandparent = ancestors[ancestors.length - 3] ?? null
+        const greatGrandparent = ancestors[ancestors.length - 4] ?? null
+
+        // Hoistable cases are handled separately and don't need createRequire.
+        const topLevelExprStmt =
+          parent?.type === 'ExpressionStatement' && grandparent?.type === 'Program'
+        const topLevelVarDecl =
+          parent?.type === 'VariableDeclarator' &&
+          grandparent?.type === 'VariableDeclaration' &&
+          greatGrandparent?.type === 'Program'
+        const hoistableTopLevel = isStatic && (topLevelExprStmt || topLevelVarDecl)
+
+        if (!isStatic || !hoistableTopLevel) {
+          needsCreateRequire = true
+        }
       }
 
       if (

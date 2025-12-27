@@ -251,6 +251,69 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).default.commonjs, true)
   })
 
+  it('keeps nested requires via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'nestedRequire.cjs')
+    const outFile = join(fixtures, 'nestedRequire.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+    assert.ok(result.indexOf('const require = createRequire(import.meta.url);') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('keeps block-scoped require via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'blockRequire.cjs')
+    const outFile = join(fixtures, 'blockRequire.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('handles module.exports alias chains when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'aliasModuleExports.cjs')
+    const outFile = join(fixtures, 'aliasModuleExports.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+    assert.equal((mod as any).bar, 2)
+    assert.equal((mod as any).baz, 3)
+  })
+
   it('rewrites require.main to import.meta.main', async t => {
     const fixturePath = join(fixtures, 'requireMain.cjs')
     const outFile = join(fixtures, 'requireMain.mjs')

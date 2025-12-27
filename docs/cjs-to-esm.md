@@ -16,6 +16,7 @@
   - `require('./x')` → `import './x'`
 - Dynamic/templated/non-literal `require()` calls (or any require that isn't hoistable) stay as-is and trigger a `createRequire` shim:
   - `import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);`
+  - Nested or block-scoped `require()` calls also stay under `createRequire` and execute at runtime.
 - `require.main` maps to `import.meta.main`; comparisons against `module` are simplified to `import.meta.main` / `!import.meta.main`.
 - `require.resolve` is rewritten to `import.meta.resolve` via the member-expression formatter.
 - `require.cache` becomes an empty object placeholder; `require.extensions` is not rewritten (deprecated).
