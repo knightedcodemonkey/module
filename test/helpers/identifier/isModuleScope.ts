@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { ancestorWalk } from '#walk'
 
 import { parse } from '#parse'
-import { identifier } from '#helpers/identifier'
+import { identifier } from '#helpers/identifier.js'
 
 const { isModuleScope } = identifier
 

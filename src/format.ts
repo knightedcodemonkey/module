@@ -2,17 +2,20 @@ import type { ParseResult } from 'oxc-parser'
 import type { FormatterOptions, ExportsMeta } from './types.js'
 import MagicString from 'magic-string'
 
-import { identifier } from './formatters/identifier.js'
-import { metaProperty } from './formatters/metaProperty.js'
-import { memberExpression } from './formatters/memberExpression.js'
-import { assignmentExpression } from './formatters/assignmentExpression.js'
-import { isValidUrl, exportsRename, collectModuleIdentifiers } from './utils.js'
-import { isIdentifierName } from './helpers/identifier.js'
-import { ancestorWalk } from './walk.js'
+import { identifier } from '#formatters/identifier.js'
+import { metaProperty } from '#formatters/metaProperty.js'
+import { memberExpression } from '#formatters/memberExpression.js'
+import { assignmentExpression } from '#formatters/assignmentExpression.js'
+import { isValidUrl } from '#utils/url.js'
+import { exportsRename, collectCjsExports } from '#utils/exports.js'
+import { collectModuleIdentifiers } from '#utils/identifiers.js'
+import { isIdentifierName } from '#helpers/identifier.js'
+import { ancestorWalk } from '#walk'
 
 /**
- * Note, there is no specific conversion for `import.meta.main` as it does not exist.
- * @see https://github.com/nodejs/node/issues/49440
+ * Node added support for import.meta.main.
+ * Added in: v24.2.0, v22.18.0
+ * @see https://nodejs.org/api/esm.html#importmetamain
  */
 const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => {
   const code = new MagicString(src)
@@ -22,6 +25,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
+  const exportTable =
+    opts.target === 'module' ? await collectCjsExports(ast.program) : null
   await collectModuleIdentifiers(ast.program)
 
   if (opts.target === 'module' && opts.transformSyntax) {
@@ -143,6 +148,45 @@ void import.meta.filename;
       }
     },
   })
+
+  if (opts.target === 'module' && opts.transformSyntax && exportTable) {
+    const isValidExportName = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
+    const asExportName = (name: string) =>
+      isValidExportName(name) ? name : JSON.stringify(name)
+    const accessProp = (name: string) =>
+      isValidExportName(name)
+        ? `${exportsRename}.${name}`
+        : `${exportsRename}[${JSON.stringify(name)}]`
+    const tempNameFor = (name: string) => {
+      const sanitized = name.replace(/[^$\w]/g, '_') || 'value'
+      const safe = /^[0-9]/.test(sanitized) ? `_${sanitized}` : sanitized
+      return `__export_${safe}`
+    }
+
+    const lines: string[] = []
+
+    const defaultEntry = exportTable.get('default')
+    if (defaultEntry) {
+      const def = defaultEntry.fromIdentifier ?? exportsRename
+      lines.push(`export default ${def};`)
+    }
+
+    for (const [key, entry] of exportTable) {
+      if (key === 'default') continue
+
+      if (entry.fromIdentifier) {
+        lines.push(`export { ${entry.fromIdentifier} as ${asExportName(key)} };`)
+      } else {
+        const temp = tempNameFor(key)
+        lines.push(`const ${temp} = ${accessProp(key)};`)
+        lines.push(`export { ${temp} as ${asExportName(key)} };`)
+      }
+    }
+
+    if (lines.length) {
+      code.append(`\n${lines.join('\n')}\n`)
+    }
+  }
 
   return code.toString()
 }

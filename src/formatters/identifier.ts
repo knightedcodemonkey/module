@@ -2,8 +2,8 @@ import MagicString from 'magic-string'
 import type { Node, IdentifierName } from 'oxc-parser'
 
 import type { FormatterOptions, ExportsMeta } from '../types.js'
-import { exportsRename } from '../utils.js'
-import { identifier as ident } from '../helpers/identifier.js'
+import { exportsRename } from '#utils/exports.js'
+import { identifier as ident } from '#helpers/identifier.js'
 
 type IdentifierArg = {
   node: IdentifierName

@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "description": "Transforms differences between ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -21,10 +21,10 @@
   "imports": {
     "#parse": "./src/parse.js",
     "#format": "./src/format.js",
-    "#utils": "./src/utils.js",
+    "#utils/*.js": "./src/utils/*.js",
     "#walk": "./src/walk.js",
-    "#helpers/*": "./src/helpers/*.js",
-    "#formatters/*": "./src/formatters/*.js"
+    "#helpers/*.js": "./src/helpers/*.js",
+    "#formatters/*.js": "./src/formatters/*.js"
   },
   "engines": {
     "node": ">=20.11.0"

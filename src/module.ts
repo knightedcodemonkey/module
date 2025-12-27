@@ -3,9 +3,9 @@ import { readFile, writeFile } from 'node:fs/promises'
 
 import { specifier } from '@knighted/specifier'
 
-import { parse } from './parse.js'
-import { format } from './format.js'
-import { getLangFromExt } from './utils.js'
+import { parse } from '#parse'
+import { format } from '#format'
+import { getLangFromExt } from '#utils/lang.js'
 import type { ModuleOptions } from './types.js'
 
 const defaultOptions = {
