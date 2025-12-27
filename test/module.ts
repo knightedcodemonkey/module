@@ -207,6 +207,205 @@ describe('@knighted/module', () => {
     })
   })
 
+  it('rewrites multi-declarator static require to imports when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'requireMulti.cjs')
+    const outFile = join(fixtures, 'requireMulti.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.indexOf("import * as a from './values.cjs'") > -1)
+    assert.ok(result.indexOf('const { foo, commonjs } = __cjsImport0;') > -1)
+    assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 'bar')
+    assert.equal((mod as any).commonjs, true)
+    assert.equal((mod as any).a.cjs, 'commonjs')
+  })
+
+  it('supports module.require while lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'moduleRequire.cjs')
+    const outFile = join(fixtures, 'moduleRequire.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.indexOf("import * as mod from './values.cjs'") > -1)
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('keeps nested requires via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'nestedRequire.cjs')
+    const outFile = join(fixtures, 'nestedRequire.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+    assert.ok(result.indexOf('const require = createRequire(import.meta.url);') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('keeps block-scoped require via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'blockRequire.cjs')
+    const outFile = join(fixtures, 'blockRequire.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('handles module.exports alias chains when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'aliasModuleExports.cjs')
+    const outFile = join(fixtures, 'aliasModuleExports.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+    assert.equal((mod as any).bar, 2)
+    assert.equal((mod as any).baz, 3)
+  })
+
+  it('rewrites require.main to import.meta.main', async t => {
+    const fixturePath = join(fixtures, 'requireMain.cjs')
+    const outFile = join(fixtures, 'requireMain.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('import.meta.main') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.main, false)
+  })
+
+  it('lifts exports inside control flow when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'exportsControlFlow.cjs')
+    const outFile = join(fixtures, 'exportsControlFlow.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).flag, 'ok')
+  })
+
+  it('rewrites static require to imports when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'requireStatic.cjs')
+    const outFile = join(fixtures, 'requireStatic.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.indexOf("import * as mod from './values.cjs'") > -1)
+    assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.renamed, true)
+    assert.equal((mod as any).default.cjs, 'commonjs')
+  })
+
+  it('keeps dynamic require via createRequire when lowering to esm', async t => {
+    const fixturePath = join(fixtures, 'requireDynamic.cjs')
+    const outFile = join(fixtures, 'requireDynamic.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.indexOf('createRequire') > -1)
+    assert.ok(result.indexOf('const require = createRequire(import.meta.url);') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.foo, 'bar')
+    assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('throws when module or exports is shadowed in cjs to esm lowering', async () => {
+    const fixturePath = join(fixtures, 'shadowedExports.cjs')
+
+    await assert.rejects(
+      () => transform(fixturePath, { target: 'module' }),
+      /shadowed in module scope/i,
+    )
+  })
+
   const transformEsmToCjs = async (t: any, file: string) => {
     const fixturePath = join(fixtures, file)
     const result = await transform(fixturePath, { target: 'commonjs' })

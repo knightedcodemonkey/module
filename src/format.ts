@@ -30,6 +30,119 @@ const exportAssignment = (
 const defaultInteropName = '__interopDefault'
 const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModule ? mod.default : mod);\n`
 
+const isRequireCallee = (callee: any, shadowed: Set<string>) => {
+  if (
+    callee.type === 'Identifier' &&
+    callee.name === 'require' &&
+    !shadowed.has('require')
+  ) {
+    return true
+  }
+
+  if (
+    callee.type === 'MemberExpression' &&
+    callee.object.type === 'Identifier' &&
+    callee.object.name === 'module' &&
+    !shadowed.has('module') &&
+    callee.property.type === 'Identifier' &&
+    callee.property.name === 'require'
+  ) {
+    return true
+  }
+
+  return false
+}
+
+const isStaticRequire = (node: any, shadowed: Set<string>) =>
+  node.type === 'CallExpression' &&
+  isRequireCallee(node.callee, shadowed) &&
+  node.arguments.length === 1 &&
+  node.arguments[0].type === 'Literal' &&
+  typeof node.arguments[0].value === 'string'
+
+const isRequireCall = (node: any, shadowed: Set<string>) =>
+  node.type === 'CallExpression' && isRequireCallee(node.callee, shadowed)
+
+type RequireTransform = {
+  start: number
+  end: number
+  code: string
+}
+
+const lowerCjsRequireToImports = (
+  program: any,
+  code: MagicString,
+  shadowed: Set<string>,
+) => {
+  const transforms: RequireTransform[] = []
+  const imports: string[] = []
+  let nsIndex = 0
+  let needsCreateRequire = false
+
+  for (const stmt of program.body as any[]) {
+    if (stmt.type === 'VariableDeclaration') {
+      const decls = stmt.declarations
+      const allStatic =
+        decls.length > 0 &&
+        decls.every((decl: any) => decl.init && isStaticRequire(decl.init, shadowed))
+
+      if (allStatic) {
+        for (const decl of decls) {
+          const init = decl.init!
+          const source = code.slice(init.arguments[0].start, init.arguments[0].end)
+
+          if (decl.id.type === 'Identifier') {
+            imports.push(`import * as ${decl.id.name} from ${source};\n`)
+          } else if (decl.id.type === 'ObjectPattern') {
+            const ns = `__cjsImport${nsIndex++}`
+            const pattern = code.slice(decl.id.start, decl.id.end)
+            imports.push(`import * as ${ns} from ${source};\n`)
+            imports.push(`const ${pattern} = ${ns};\n`)
+          } else {
+            needsCreateRequire = true
+          }
+        }
+
+        transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
+        continue
+      }
+
+      for (const decl of decls) {
+        const init = decl.init
+        if (init && isRequireCall(init, shadowed)) {
+          needsCreateRequire = true
+        }
+      }
+    }
+
+    if (stmt.type === 'ExpressionStatement') {
+      const expr = stmt.expression
+
+      if (expr && isStaticRequire(expr, shadowed)) {
+        const source = code.slice(expr.arguments[0].start, expr.arguments[0].end)
+        imports.push(`import ${source};\n`)
+        transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
+        continue
+      }
+
+      if (expr && isRequireCall(expr, shadowed)) {
+        needsCreateRequire = true
+      }
+    }
+  }
+
+  return { transforms, imports, needsCreateRequire }
+}
+
+const isRequireMainMember = (node: any, shadowed: Set<string>) =>
+  node &&
+  node.type === 'MemberExpression' &&
+  node.object.type === 'Identifier' &&
+  node.object.name === 'require' &&
+  !shadowed.has('require') &&
+  node.property.type === 'Identifier' &&
+  node.property.name === 'main'
+
 const hasTopLevelAwait = (program: any) => {
   let found = false
 
@@ -320,15 +433,33 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
+  const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
+  const shadowedBindings = new Set(
+    [...moduleIdentifiers.entries()]
+      .filter(([, meta]) => meta.declare.length > 0)
+      .map(([name]) => name),
+  )
+
+  if (opts.target === 'module' && opts.transformSyntax) {
+    if (shadowedBindings.has('module') || shadowedBindings.has('exports')) {
+      throw new Error(
+        'Cannot transform to ESM: module or exports is shadowed in module scope.',
+      )
+    }
+  }
+
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
-  await collectModuleIdentifiers(ast.program)
   const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
     : false
 
   const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
+  const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
+  let hoistedImports: string[] = []
+  let pendingRequireTransforms: RequireTransform[] = []
+  let needsCreateRequire = false
   let pendingCjsTransforms: {
     transforms: Array<ImportTransform | ExportTransform>
     needsInterop: boolean
@@ -340,20 +471,73 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     )
   }
 
-  if (opts.target === 'module' && opts.transformSyntax) {
-    /**
-     * Prepare ESM output by renaming `exports` to `__exports` and seeding an
-     * `import.meta.filename` touch so import.meta is present even when the
-     * original source never referenced it.
-     */
-    code.prepend(`let ${exportsRename} = {};
-void import.meta.filename;
-`)
+  if (shouldRaiseEsm) {
+    const {
+      transforms,
+      imports,
+      needsCreateRequire: reqCreate,
+    } = lowerCjsRequireToImports(ast.program, code, shadowedBindings)
+
+    pendingRequireTransforms = transforms
+    hoistedImports = imports
+    needsCreateRequire = reqCreate
   }
 
   await ancestorWalk(ast.program, {
     async enter(node, ancestors) {
       const parent = ancestors[ancestors.length - 2] ?? null
+
+      if (shouldRaiseEsm && node.type === 'BinaryExpression') {
+        const op = node.operator
+        const isEquality = op === '===' || op === '==' || op === '!==' || op === '!='
+
+        if (isEquality) {
+          const leftMain = isRequireMainMember(node.left, shadowedBindings)
+          const rightMain = isRequireMainMember(node.right, shadowedBindings)
+          const leftModule =
+            node.left.type === 'Identifier' &&
+            node.left.name === 'module' &&
+            !shadowedBindings.has('module')
+          const rightModule =
+            node.right.type === 'Identifier' &&
+            node.right.name === 'module' &&
+            !shadowedBindings.has('module')
+
+          if ((leftMain && rightModule) || (rightMain && leftModule)) {
+            const negate = op === '!==' || op === '!='
+            code.update(
+              node.start,
+              node.end,
+              negate ? '!import.meta.main' : 'import.meta.main',
+            )
+            return
+          }
+        }
+      }
+
+      if (
+        shouldRaiseEsm &&
+        node.type === 'CallExpression' &&
+        isRequireCall(node, shadowedBindings)
+      ) {
+        const isStatic = isStaticRequire(node, shadowedBindings)
+        const parent = ancestors[ancestors.length - 2] ?? null
+        const grandparent = ancestors[ancestors.length - 3] ?? null
+        const greatGrandparent = ancestors[ancestors.length - 4] ?? null
+
+        // Hoistable cases are handled separately and don't need createRequire.
+        const topLevelExprStmt =
+          parent?.type === 'ExpressionStatement' && grandparent?.type === 'Program'
+        const topLevelVarDecl =
+          parent?.type === 'VariableDeclarator' &&
+          grandparent?.type === 'VariableDeclaration' &&
+          greatGrandparent?.type === 'Program'
+        const hoistableTopLevel = isStatic && (topLevelExprStmt || topLevelVarDecl)
+
+        if (!isStatic || !hoistableTopLevel) {
+          needsCreateRequire = true
+        }
+      }
 
       if (
         node.type === 'FunctionDeclaration' ||
@@ -445,7 +629,7 @@ void import.meta.filename;
       }
 
       if (node.type === 'MemberExpression') {
-        memberExpression(node, parent, code, opts)
+        memberExpression(node, parent, code, opts, shadowedBindings)
       }
 
       if (isIdentifierName(node)) {
@@ -455,10 +639,17 @@ void import.meta.filename;
           code,
           opts,
           meta: exportsMeta,
+          shadowed: shadowedBindings,
         })
       }
     },
   })
+
+  if (pendingRequireTransforms.length) {
+    for (const t of pendingRequireTransforms) {
+      code.overwrite(t.start, t.end, t.code)
+    }
+  }
 
   if (shouldLowerCjs) {
     const { importTransforms, exportTransforms, needsInterop } = lowerEsmToCjs(
@@ -523,6 +714,30 @@ void import.meta.filename;
     if (lines.length) {
       code.append(`\n${lines.join('\n')}\n`)
     }
+  }
+
+  if (shouldRaiseEsm && opts.transformSyntax) {
+    const importPrelude: string[] = []
+
+    if (needsCreateRequire) {
+      importPrelude.push('import { createRequire } from "node:module";\n')
+    }
+
+    if (hoistedImports.length) {
+      importPrelude.push(...hoistedImports)
+    }
+
+    const requireInit = needsCreateRequire
+      ? 'const require = createRequire(import.meta.url);\n'
+      : ''
+
+    const prelude = `${importPrelude.join('')}${
+      importPrelude.length ? '\n' : ''
+    }${requireInit}let ${exportsRename} = {};
+void import.meta.filename;
+`
+
+    code.prepend(prelude)
   }
 
   if (opts.target === 'commonjs' && opts.transformSyntax && containsTopLevelAwait) {
