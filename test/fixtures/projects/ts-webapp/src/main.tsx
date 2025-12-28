@@ -1,15 +1,15 @@
-import type { Config } from './utils/config.ts'
-import { renderApp } from './ui/app.tsx'
+import type { Config } from './utils/config.js'
+import { renderApp } from './ui/app.js'
 
 export const boot = async (url: string) => {
-  const { loadConfig } = await import('./utils/config.ts')
+  const { loadConfig } = await import('./utils/config.js')
   const loaded = await loadConfig(url)
   const rendered = renderApp(loaded)
   return { rendered, url }
 }
 
 export const lazyApp = async () => {
-  const { renderApp: render } = await import('./ui/app.tsx')
+  const { renderApp: render } = await import('./ui/app.js')
   return render({ title: 'lazy' })
 }
 

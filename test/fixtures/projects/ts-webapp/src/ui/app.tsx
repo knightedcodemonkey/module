@@ -1,5 +1,5 @@
-import type { Config } from '../utils/config.ts'
-import { View } from './view.jsx'
+import type { Config } from '../utils/config.js'
+import { View } from './view.js'
 
 export type Rendered = { node: JSX.Element; props: Config }
 
