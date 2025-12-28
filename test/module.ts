@@ -514,6 +514,29 @@ describe('@knighted/module', () => {
     )
   })
 
+  it('warns on circular requires when warnings are enabled', async t => {
+    const fixturePath = join(fixtures, 'cycles', 'a.cjs')
+    const warnings: string[] = []
+    /* eslint-disable no-console -- capture warn output for cycle detection */
+    const originalWarn = console.warn
+
+    t.after(() => {
+      console.warn = originalWarn
+    })
+
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(' '))
+    }
+    /* eslint-enable no-console */
+
+    await transform(fixturePath, {
+      target: 'module',
+      detectCircularRequires: 'warn',
+    })
+
+    assert.ok(warnings.some(msg => msg.includes('Circular require detected')))
+  })
+
   it('lifts exports inside control flow when lowering to esm', async t => {
     const fixturePath = join(fixtures, 'exportsControlFlow.cjs')
     const outFile = join(fixtures, 'exportsControlFlow.mjs')
@@ -1123,6 +1146,18 @@ describe('@knighted/module', () => {
 
     assert.ok(result.includes('./dir/index.js'))
     assert.equal((mod as any).value, 42)
+  })
+
+  it('skips directory index append when disabled', async () => {
+    const fixturePath = join(fixtures, 'edgecases', 'dirTrailing.cjs')
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      appendDirectoryIndex: false,
+    })
+
+    assert.ok(result.includes('./dir/'))
+    assert.equal(result.includes('./dir/index.js'), false)
   })
 
   it('emits diagnostics for CJS to ESM edge cases', async () => {
