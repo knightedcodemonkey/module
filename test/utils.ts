@@ -282,6 +282,24 @@ describe('collectCjsExports', () => {
     assert.equal(exportsMap.get('my-cool-func')?.fromIdentifier, 'fn')
     assert.equal(exportsMap.get('literal')?.hasGetter, true)
   })
+
+  it('collects exports from destructuring patterns and const aliases', async () => {
+    const source = `
+      const NAME = 'fromConst';
+      const data = { a: 1, b: 2, nested: { c: 3 } };
+
+      ({ a: exports.a, b: module.exports.b } = data);
+      ([exports.c, module.exports.d] = [4, 5]);
+      ({ nested: { c: module.exports[NAME] } } = data);
+    `
+
+    const ast = parse('file.cjs', source).program
+    const exportsMap = await collectCjsExports(ast)
+    const keys = Array.from(exportsMap.keys()).sort()
+
+    assert.deepEqual(keys, ['a', 'b', 'c', 'd', 'fromConst'])
+    assert.equal(exportsMap.get('fromConst')?.via.has('module.exports'), true)
+  })
 })
 
 describe('getLangFromExt', () => {

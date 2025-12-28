@@ -24,9 +24,12 @@ export type ModuleOptions = {
   liveBindings?: 'strict' | 'loose' | 'off'
   rewriteSpecifier?: RewriteSpecifier
   appendJsExtension?: 'off' | 'relative-only' | 'all'
+  appendDirectoryIndex?: string | false
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
   importMetaMain?: 'shim' | 'warn' | 'error'
+  requireMainStrategy?: 'import-meta-main' | 'realpath'
+  detectCircularRequires?: 'off' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'

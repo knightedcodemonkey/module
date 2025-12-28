@@ -126,7 +126,7 @@ const collectCjsExports = async (ast: Node) => {
   }
 
   await ancestorWalk(ast, {
-    enter(node) {
+    enter(node, ancestors) {
       if (
         node.type === 'VariableDeclarator' &&
         node.id.type === 'Identifier' &&
@@ -137,11 +137,15 @@ const collectCjsExports = async (ast: Node) => {
           aliases.set(node.id.name, via)
         }
 
+        const parentDecl = ancestors?.[ancestors.length - 2]
+        const isConstDecl =
+          parentDecl?.type === 'VariableDeclaration' && parentDecl.kind === 'const'
+
         if (
           node.init.type === 'Literal' &&
           (typeof node.init.value === 'string' || typeof node.init.value === 'number')
         ) {
-          literals.set(node.id.name, node.init.value)
+          if (isConstDecl) literals.set(node.id.name, node.init.value)
         }
 
         if (
@@ -150,7 +154,7 @@ const collectCjsExports = async (ast: Node) => {
           node.init.quasis.length === 1
         ) {
           const cooked = node.init.quasis[0].value.cooked ?? node.init.quasis[0].value.raw
-          literals.set(node.id.name, cooked)
+          if (isConstDecl) literals.set(node.id.name, cooked)
         }
       }
 
@@ -180,15 +184,35 @@ const collectCjsExports = async (ast: Node) => {
           }
         }
 
-        if (node.left.type === 'ObjectPattern') {
-          for (const prop of node.left.properties) {
-            if (prop.type === 'Property' && prop.value.type === 'MemberExpression') {
-              const ref = resolveExportTarget(prop.value, aliases, literals)
-              if (ref) {
-                addExport(ref, node)
+        if (node.left.type === 'ObjectPattern' || node.left.type === 'ArrayPattern') {
+          const findExportRefs = (pattern: Node) => {
+            if (pattern.type === 'MemberExpression') {
+              const ref = resolveExportTarget(pattern, aliases, literals)
+              if (ref) addExport(ref, node)
+              return
+            }
+
+            if (pattern.type === 'ObjectPattern') {
+              for (const prop of pattern.properties) {
+                const target = prop.type === 'Property' ? prop.value : prop.argument
+                if (target) findExportRefs(target)
               }
+              return
+            }
+
+            if (pattern.type === 'ArrayPattern') {
+              for (const el of pattern.elements) {
+                if (el) findExportRefs(el)
+              }
+              return
+            }
+
+            if (pattern.type === 'RestElement') {
+              findExportRefs(pattern.argument)
             }
           }
+
+          findExportRefs(node.left)
         }
       }
 

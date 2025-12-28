@@ -31,7 +31,7 @@ export const identifier = ({
 
     switch (name) {
       case '__filename':
-        code.update(start, end, 'import.meta.url')
+        code.update(start, end, 'import.meta.filename')
         break
       case '__dirname':
         code.update(start, end, 'import.meta.dirname')

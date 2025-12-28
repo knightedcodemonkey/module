@@ -101,6 +101,8 @@ type ModuleOptions = {
   sourceType?: 'auto' | 'module' | 'commonjs'
   transformSyntax?: boolean
   liveBindings?: 'strict' | 'loose' | 'off'
+  appendJsExtension?: 'off' | 'relative-only' | 'all'
+  appendDirectoryIndex?: string | false
   rewriteSpecifier?:
     | '.js'
     | '.mjs'
@@ -112,6 +114,8 @@ type ModuleOptions = {
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
   importMetaMain?: 'shim' | 'warn' | 'error'
+  requireMainStrategy?: 'import-meta-main' | 'realpath'
+  detectCircularRequires?: 'off' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
@@ -125,15 +129,22 @@ Behavior notes (defaults in parentheses)
 - `target` (`commonjs`): output module system.
 - `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass.
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
+- `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
+- `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
 - `dirFilename` (`inject`): inject `__dirname`/`__filename`, preserve existing, or throw.
 - `importMeta` (`shim`): rewrite `import.meta.*` to CommonJS equivalents.
 - `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
+- `requireMainStrategy` (`import-meta-main`): use `import.meta.main` or the realpath-based `pathToFileURL(realpathSync(process.argv[1])).href` check.
+- `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
 - `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
 - CommonJS → ESM lowering will throw on `with` statements and unshadowed `eval` calls to avoid unsound rewrites.
+
+> [!NOTE]
+> Package-level metadata (`package.json` updates such as setting `"type": "module"` or authoring `exports`) is not edited by this tool today; plan that change outside the per-file transform.
 
 See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, interop helpers, top-level await behavior, and `import.meta.main` handling. For CommonJS to ESM lowering details, read [docs/cjs-to-esm.md](docs/cjs-to-esm.md).
 
