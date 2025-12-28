@@ -23,6 +23,7 @@ export type ModuleOptions = {
   transformSyntax?: boolean
   liveBindings?: 'strict' | 'loose' | 'off'
   rewriteSpecifier?: RewriteSpecifier
+  appendJsExtension?: 'off' | 'relative-only' | 'all'
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
   importMetaMain?: 'shim' | 'warn' | 'error'

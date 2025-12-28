@@ -915,6 +915,24 @@ describe('@knighted/module', () => {
     )
   })
 
+  it('appends .js to relative specifiers when targeting module', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'noext.cjs')
+    const result = await transform(fixturePath, { target: 'module' })
+    const outFile = join(specifierRoot, 'noext.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.equal((result.match(/\.\/file\.js/g) ?? []).length, 3)
+    assert.equal(result.includes("'./file'"), false)
+  })
+
   it('exports anonymous default function when lowering to commonjs', async () => {
     const fixturePath = join(fixtures, 'exportDefaultAnon.mjs')
     const result = await transform(fixturePath, { target: 'commonjs' })

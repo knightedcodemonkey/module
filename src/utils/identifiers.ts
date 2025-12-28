@@ -5,6 +5,36 @@ import { ancestorWalk } from '#walk'
 import { identifier } from '#helpers/identifier.js'
 import { scopeNodes } from './scopeNodes.js'
 
+const addBindingNames = (pattern: any, into: Set<string>) => {
+  if (!pattern) return
+
+  switch (pattern.type) {
+    case 'Identifier':
+      into.add(pattern.name)
+      return
+    case 'AssignmentPattern':
+      addBindingNames(pattern.left, into)
+      return
+    case 'RestElement':
+      addBindingNames(pattern.argument, into)
+      return
+    case 'ObjectPattern':
+      for (const prop of pattern.properties ?? []) {
+        if (prop.type === 'Property') {
+          addBindingNames(prop.value, into)
+        } else if (prop.type === 'RestElement') {
+          addBindingNames(prop.argument, into)
+        }
+      }
+      return
+    case 'ArrayPattern':
+      for (const elem of pattern.elements ?? []) {
+        if (elem) addBindingNames(elem, into)
+      }
+      return
+  }
+}
+
 const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
   const { type } = node
 
@@ -20,26 +50,11 @@ const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
         const name = node.id ? node.id.name : 'anonymous'
         const scope = { node, name, type: 'Function', idents: new Set<string>() }
 
-        node.params
-          .map(param => {
-            if (param.type === 'TSParameterProperty') {
-              return param.parameter
-            }
-
-            if (param.type === 'RestElement') {
-              return param.argument
-            }
-
-            if (param.type === 'AssignmentPattern') {
-              return param.left
-            }
-
-            return param
-          })
-          .filter(identifier.isNamed)
-          .forEach(param => {
-            scope.idents.add(param.name)
-          })
+        for (const param of node.params) {
+          const normalized =
+            param.type === 'TSParameterProperty' ? param.parameter : param
+          addBindingNames(normalized, scope.idents)
+        }
 
         /**
          * If a FunctionExpression has an id, it is a named function expression.
@@ -85,8 +100,8 @@ const collectScopeIdentifiers = (node: Node, scopes: Scope[]) => {
         const scope = scopes[scopes.length - 1]
 
         node.declarations.forEach(decl => {
-          if (decl.type === 'VariableDeclarator' && decl.id.type === 'Identifier') {
-            scope.idents.add(decl.id.name)
+          if (decl.type === 'VariableDeclarator') {
+            addBindingNames(decl.id, scope.idents)
           }
         })
       }
