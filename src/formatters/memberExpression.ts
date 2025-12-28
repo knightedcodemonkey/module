@@ -22,9 +22,10 @@ export const memberExpression = (
   shadowed?: Set<string>,
   extras?: MemberExpressionExtras,
   useExportsBag: boolean = true,
+  rewriteExports: boolean = true,
 ) => {
   if (options.target === 'module') {
-    if (!useExportsBag) {
+    if (rewriteExports && !useExportsBag) {
       if (
         parent?.type === 'MemberExpression' &&
         parent.object === node &&
@@ -56,21 +57,24 @@ export const memberExpression = (
     }
 
     if (
-      (node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
-      (node.property.type === 'Identifier' && shadowed?.has(node.property.name))
+      rewriteExports &&
+      ((node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
+        (node.property.type === 'Identifier' && shadowed?.has(node.property.name)))
     ) {
       return
     }
-    if (
-      node.object.type === 'Identifier' &&
-      node.property.type === 'Identifier' &&
-      node.object.name === 'module' &&
-      node.property.name === 'exports'
-    ) {
-      if (useExportsBag) {
-        src.update(node.start, node.end, exportsRename)
+    if (rewriteExports) {
+      if (
+        node.object.type === 'Identifier' &&
+        node.property.type === 'Identifier' &&
+        node.object.name === 'module' &&
+        node.property.name === 'exports'
+      ) {
+        if (useExportsBag) {
+          src.update(node.start, node.end, exportsRename)
+        }
+        return
       }
-      return
     }
 
     if (

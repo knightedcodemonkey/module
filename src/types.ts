@@ -23,8 +23,13 @@ export type ModuleOptions = {
   target: 'module' | 'commonjs'
   /** Explicit source type; auto infers from file extension. */
   sourceType?: 'auto' | 'module' | 'commonjs'
-  /** Enable syntax transforms beyond parsing. */
-  transformSyntax?: boolean
+  /**
+   * Enable syntax transforms beyond parsing.
+   * - true: full CJS↔ESM lowering/raising
+   * - 'globals-only': rewrite module-global differences (import.meta, __dirname/filename, require.main shims) while leaving import/export shapes untouched
+   * - false/undefined: no syntax transforms
+   */
+  transformSyntax?: boolean | 'globals-only'
   /** How to emit live bindings for ESM exports. */
   liveBindings?: 'strict' | 'loose' | 'off'
   /** Rewrite import specifiers (e.g. add extensions). */

@@ -1445,6 +1445,62 @@ describe('@knighted/module', () => {
     }
   })
 
+  it('globals-only rewrites esm globals without touching exports', async t => {
+    const fixturePath = join(fixtures, 'globalsOnly.mjs')
+    const outFile = join(fixtures, 'globalsOnly.out.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      transformSyntax: 'globals-only',
+      out: outFile,
+    })
+
+    assert.ok(result.includes('import.meta.dirname'))
+    assert.ok(result.includes('import.meta.filename'))
+    assert.ok(result.includes('export const here'))
+    assert.equal(result.includes('__exports'), false)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.ok(String(mod.here).includes('fixtures'))
+    assert.ok(String(mod.file).includes('globalsOnly.out.mjs'))
+    assert.ok(String(mod.url).includes('globalsOnly.out.mjs'))
+  })
+
+  it('globals-only rewrites cjs globals without changing export shape', async () => {
+    const fixturePath = join(fixtures, 'globalsOnly.cjs')
+    const outFile = join(fixtures, 'globalsOnly.out.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    try {
+      const result = await transform(fixturePath, {
+        target: 'commonjs',
+        transformSyntax: 'globals-only',
+        out: outFile,
+      })
+
+      assert.ok(result.includes('__dirname'))
+      assert.ok(result.includes('__filename'))
+      assert.ok(result.includes('module.exports'))
+      assert.equal(result.includes('__exports'), false)
+
+      const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+      assert.equal(status, 0)
+
+      const base = requireCjs(fixturePath)
+      const out = requireCjs(outFile)
+      assert.equal(out.here, base.here)
+      assert.equal(out.resolved, base.resolved)
+      assert.equal(out.file, outFile)
+    } finally {
+      await rm(outFile, { force: true })
+    }
+  })
+
   it('converts a small commonjs project to esm', async t => {
     const projectRoot = join(fixtures, 'projects', 'cjs-app')
     const entry = join(projectRoot, 'index.cjs')

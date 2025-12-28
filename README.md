@@ -99,7 +99,7 @@ invoked directly by node
 type ModuleOptions = {
   target: 'module' | 'commonjs'
   sourceType?: 'auto' | 'module' | 'commonjs'
-  transformSyntax?: boolean
+  transformSyntax?: boolean | 'globals-only'
   liveBindings?: 'strict' | 'loose' | 'off'
   appendJsExtension?: 'off' | 'relative-only' | 'all'
   appendDirectoryIndex?: string | false
@@ -127,7 +127,7 @@ type ModuleOptions = {
 Behavior notes (defaults in parentheses)
 
 - `target` (`commonjs`): output module system.
-- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass.
+- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched.
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
 - `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
@@ -183,7 +183,7 @@ console.log(diagnostics)
 
 ## Pre-`tsc` transforms for TypeScript diagnostics
 
-TypeScript reports asymmetric module-global errors (e.g., `import.meta` in CJS, `__dirname` in ESM) as tracked in [microsoft/TypeScript#58658](https://github.com/microsoft/TypeScript/issues/58658). You can mitigate this by running `@knighted/module` **before** `tsc` so the checker sees already-rewritten sources.
+TypeScript reports asymmetric module-global errors (e.g., `import.meta` in CJS, `__dirname` in ESM) as tracked in [microsoft/TypeScript#58658](https://github.com/microsoft/TypeScript/issues/58658). You can mitigate this by running `@knighted/module` **before** `tsc` so the checker sees already-rewritten sources. For a specifier + globals-only pass that leaves import/export syntax for `tsc`, set `transformSyntax: 'globals-only'`.
 
 Minimal flow:
 

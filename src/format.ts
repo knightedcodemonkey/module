@@ -575,6 +575,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       loc,
     })
   }
+  const transformMode = opts.transformSyntax
+  const fullTransform = transformMode === true
   const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
   const shadowedBindings = new Set(
     [...moduleIdentifiers.entries()]
@@ -582,7 +584,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       .map(([name]) => name),
   )
 
-  if (opts.target === 'module' && opts.transformSyntax) {
+  if (opts.target === 'module' && fullTransform) {
     if (shadowedBindings.has('module') || shadowedBindings.has('exports')) {
       throw new Error(
         'Cannot transform to ESM: module or exports is shadowed in module scope.',
@@ -593,10 +595,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
   const idiomaticMode =
-    opts.target === 'module' && opts.transformSyntax
-      ? (opts.idiomaticExports ?? 'safe')
-      : 'off'
-  let useExportsBag = true
+    opts.target === 'module' && fullTransform ? (opts.idiomaticExports ?? 'safe') : 'off'
+  let useExportsBag = fullTransform
   let idiomaticPlan: {
     replacements: Array<{ start: number; end: number }>
     exports: string[]
@@ -795,7 +795,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
     }
   }
-  const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
+  const shouldCheckTopLevelAwait = opts.target === 'commonjs' && fullTransform
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
     : false
@@ -810,8 +810,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   let needsRequireResolveHelper = false
   const nestedRequireStrategy = opts.nestedRequireStrategy ?? 'create-require'
 
-  const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
-  const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
+  const shouldLowerCjs = opts.target === 'commonjs' && fullTransform
+  const shouldRaiseEsm = opts.target === 'module' && fullTransform
   let hoistedImports: string[] = []
   let hoistedStatements: string[] = []
   let pendingRequireTransforms: RequireTransform[] = []
@@ -1053,6 +1053,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
             },
           },
           useExportsBag,
+          fullTransform,
         )
       }
 
@@ -1136,7 +1137,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     }
   }
 
-  if (useExportsBag && opts.target === 'module' && opts.transformSyntax && exportTable) {
+  if (useExportsBag && opts.target === 'module' && fullTransform && exportTable) {
     const isValidExportName = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
     const asExportName = (name: string) =>
       isValidExportName(name) ? name : JSON.stringify(name)
@@ -1213,7 +1214,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     }
   }
 
-  if (shouldRaiseEsm && opts.transformSyntax) {
+  if (shouldRaiseEsm && fullTransform) {
     const importPrelude: string[] = []
 
     if (needsCreateRequire || needsRequireResolveHelper) {
@@ -1275,7 +1276,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     code.prepend(prelude)
   }
 
-  if (opts.target === 'commonjs' && opts.transformSyntax && containsTopLevelAwait) {
+  if (opts.target === 'commonjs' && fullTransform && containsTopLevelAwait) {
     const body = code.toString()
 
     if (opts.topLevelAwait === 'wrap') {
