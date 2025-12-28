@@ -21,22 +21,60 @@ export const memberExpression = (
   options: FormatterOptions,
   shadowed?: Set<string>,
   extras?: MemberExpressionExtras,
+  useExportsBag: boolean = true,
+  rewriteExports: boolean = true,
 ) => {
   if (options.target === 'module') {
+    if (rewriteExports && !useExportsBag) {
+      if (
+        parent?.type === 'MemberExpression' &&
+        parent.object === node &&
+        parent.property.type === 'Identifier'
+      ) {
+        const baseIsExportsIdent =
+          node.object.type === 'Identifier' && node.object.name === 'exports'
+        const baseIsModuleExports =
+          node.object.type === 'Identifier' &&
+          node.object.name === 'module' &&
+          node.property.type === 'Identifier' &&
+          node.property.name === 'exports'
+
+        if (baseIsExportsIdent || baseIsModuleExports) {
+          src.update(parent.start, parent.end, parent.property.name)
+          return
+        }
+      }
+
+      if (
+        node.object.type === 'Identifier' &&
+        node.property.type === 'Identifier' &&
+        node.object.name === 'module' &&
+        node.property.name === 'exports'
+      ) {
+        src.update(node.start, node.end, 'undefined')
+        return
+      }
+    }
+
     if (
-      (node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
-      (node.property.type === 'Identifier' && shadowed?.has(node.property.name))
+      rewriteExports &&
+      ((node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
+        (node.property.type === 'Identifier' && shadowed?.has(node.property.name)))
     ) {
       return
     }
-    if (
-      node.object.type === 'Identifier' &&
-      node.property.type === 'Identifier' &&
-      node.object.name === 'module' &&
-      node.property.name === 'exports'
-    ) {
-      src.update(node.start, node.end, exportsRename)
-      return
+    if (rewriteExports) {
+      if (
+        node.object.type === 'Identifier' &&
+        node.property.type === 'Identifier' &&
+        node.object.name === 'module' &&
+        node.property.name === 'exports'
+      ) {
+        if (useExportsBag) {
+          src.update(node.start, node.end, exportsRename)
+        }
+        return
+      }
     }
 
     if (
@@ -56,6 +94,10 @@ export const memberExpression = (
           src.update(start, end, 'import.meta.main')
           break
         case 'resolve':
+          if (options.transformSyntax !== true) {
+            src.update(start, end, 'import.meta.resolve')
+            return
+          }
           extras?.onRequireResolve?.()
           src.update(start, end, extras?.requireResolveName ?? 'import.meta.resolve')
           break

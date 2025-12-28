@@ -108,12 +108,22 @@ const collectCjsExports = async (ast: Node) => {
   const localToExport = new Map<string, Set<string>>()
   const aliases = new Map<string, ExportRef['via']>()
   const literals = new Map<string, string | number>()
+  let hasUnsupportedExportWrite = false
+
+  const isTopLevelWrite = (ancestors: Node[]) => {
+    const parent = ancestors[ancestors.length - 2]
+    const grandparent = ancestors[ancestors.length - 3]
+    return (
+      grandparent?.type === 'Program' &&
+      (parent?.type === 'ExpressionStatement' || parent?.type === 'VariableDeclaration')
+    )
+  }
 
   const addExport = (
     ref: ExportRef,
     node: Node,
     rhs?: SimpleIdentifier,
-    options?: { hasGetter?: boolean },
+    options?: { hasGetter?: boolean; topLevel?: boolean },
   ) => {
     const entry = exportsMap.get(ref.key) ?? {
       key: ref.key,
@@ -127,6 +137,10 @@ const collectCjsExports = async (ast: Node) => {
 
     if (options?.hasGetter) {
       entry.hasGetter = true
+    }
+
+    if (options?.topLevel === false) {
+      entry.hasNonTopLevelWrite = true
     }
 
     if (rhs) {
@@ -180,8 +194,17 @@ const collectCjsExports = async (ast: Node) => {
             node.right.type === 'Identifier'
               ? (node.right as SimpleIdentifier)
               : undefined
-          addExport(target, node, rhsIdent)
+          const topLevel = isTopLevelWrite(ancestors)
+
+          addExport(target, node, rhsIdent, { topLevel })
           return
+        }
+
+        if (
+          node.left.type === 'MemberExpression' &&
+          resolveBase(node.left.object, aliases, ancestors)
+        ) {
+          hasUnsupportedExportWrite = true
         }
 
         if (node.left.type === 'Identifier') {
@@ -202,7 +225,10 @@ const collectCjsExports = async (ast: Node) => {
           const findExportRefs = (pattern: Node) => {
             if (pattern.type === 'MemberExpression') {
               const ref = resolveExportTarget(pattern, aliases, literals, ancestors)
-              if (ref) addExport(ref, node)
+              if (ref) {
+                const topLevel = isTopLevelWrite(ancestors)
+                addExport(ref, node, undefined, { topLevel })
+              }
               return
             }
 
@@ -259,7 +285,9 @@ const collectCjsExports = async (ast: Node) => {
                   rhsIdent = prop.value as SimpleIdentifier
                 }
 
-                addExport({ key: keyName, via: ref }, node, rhsIdent)
+                const topLevel = isTopLevelWrite(ancestors)
+
+                addExport({ key: keyName, via: ref }, node, rhsIdent, { topLevel })
               }
             }
           }
@@ -303,7 +331,12 @@ const collectCjsExports = async (ast: Node) => {
             }
           }
 
-          addExport({ key: keyName, via: target }, node, rhsIdent, { hasGetter })
+          const topLevel = isTopLevelWrite(ancestors)
+
+          addExport({ key: keyName, via: target }, node, rhsIdent, {
+            hasGetter,
+            topLevel,
+          })
         }
 
         // Object.defineProperties(exports, { foo: { value: ... }, bar: { get: ... } })
@@ -345,12 +378,18 @@ const collectCjsExports = async (ast: Node) => {
               }
             }
 
-            addExport({ key: keyName, via: target }, node, rhsIdent, { hasGetter })
+            const topLevel = isTopLevelWrite(ancestors)
+
+            addExport({ key: keyName, via: target }, node, rhsIdent, {
+              hasGetter,
+              topLevel,
+            })
           }
         }
       }
     },
   })
+  ;(exportsMap as any).hasUnsupportedExportWrite = hasUnsupportedExportWrite
 
   return exportsMap
 }

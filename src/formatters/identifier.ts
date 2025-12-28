@@ -12,6 +12,7 @@ type IdentifierArg = {
   opts: FormatterOptions
   meta: ExportsMeta
   shadowed?: Set<string>
+  useExportsBag?: boolean
 }
 
 export const identifier = ({
@@ -21,6 +22,7 @@ export const identifier = ({
   opts,
   meta,
   shadowed,
+  useExportsBag = true,
 }: IdentifierArg) => {
   if (opts.target === 'module') {
     const { start, end, name } = node
@@ -40,7 +42,7 @@ export const identifier = ({
         {
           const parent = ancestors[ancestors.length - 2]
 
-          if (opts.transformSyntax) {
+          if (opts.transformSyntax && useExportsBag) {
             if (parent.type === 'AssignmentExpression' && parent.left === node) {
               // The code is reassigning `exports` to something else.
 

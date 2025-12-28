@@ -23,8 +23,13 @@ export type ModuleOptions = {
   target: 'module' | 'commonjs'
   /** Explicit source type; auto infers from file extension. */
   sourceType?: 'auto' | 'module' | 'commonjs'
-  /** Enable syntax transforms beyond parsing. */
-  transformSyntax?: boolean
+  /**
+   * Enable syntax transforms beyond parsing.
+   * - true: full CJS↔ESM lowering/raising
+   * - 'globals-only': rewrite module-global differences (import.meta, __dirname/filename, require.main shims) while leaving import/export shapes untouched
+   * - false/undefined: no syntax transforms
+   */
+  transformSyntax?: boolean | 'globals-only'
   /** How to emit live bindings for ESM exports. */
   liveBindings?: 'strict' | 'loose' | 'off'
   /** Rewrite import specifiers (e.g. add extensions). */
@@ -49,6 +54,8 @@ export type ModuleOptions = {
   nestedRequireStrategy?: 'create-require' | 'dynamic-import'
   /** Default interop style for CommonJS default imports. */
   cjsDefault?: 'module-exports' | 'auto' | 'none'
+  /** Emit idiomatic exports when raising CJS to ESM. */
+  idiomaticExports?: 'off' | 'safe' | 'aggressive'
   /** Handling for top-level await constructs. */
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
   /** Optional diagnostics sink for warnings/errors emitted during transform. */
@@ -85,6 +92,7 @@ export type CjsExport = {
   via: Set<'exports' | 'module.exports'>
   reassignments: SpannedNode[]
   hasGetter?: boolean
+  hasNonTopLevelWrite?: boolean
 }
 
 export type IdentMeta = {

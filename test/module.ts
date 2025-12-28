@@ -1160,6 +1160,77 @@ describe('@knighted/module', () => {
     assert.equal(result.includes('./dir/index.js'), false)
   })
 
+  it('emits idiomatic exports in safe CJS files', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticSafe.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.equal(result.includes('__exports'), false)
+    assert.ok(/export const foo\s*=\s*1/.test(result))
+    assert.ok(result.includes('export const bar'))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+    assert.equal(typeof (mod as any).bar, 'function')
+    assert.equal((mod as any).bar(), 'bar')
+  })
+
+  it('respects idiomaticExports: off and keeps helper bag', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticOff.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      idiomaticExports: 'off',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('__exports'))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+  })
+
+  it('honors idiomaticExports: aggressive (currently same as safe)', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticAggressive.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      idiomaticExports: 'aggressive',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.equal(result.includes('__exports'), false)
+    assert.ok(/export const foo\s*=\s*1/.test(result))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+  })
+
+  it('falls back to helper exports when idiomatic is unsafe', async () => {
+    const fixturePath = join(fixtures, 'idiomaticFallback.cjs')
+    const diagnostics: Array<{ code: string }> = []
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      diagnostics: diag => diagnostics.push(diag),
+    })
+
+    assert.ok(result.includes('__exports'))
+    assert.ok(diagnostics.some(d => d.code === 'idiomatic-exports-fallback'))
+  })
+
   it('emits diagnostics for CJS to ESM edge cases', async () => {
     const fixturePath = join(fixtures, 'diagnostics.cjs')
     const diagnostics: Array<{ code: string }> = []
@@ -1369,6 +1440,62 @@ describe('@knighted/module', () => {
       assert.equal(status, 0)
       const mod = await import(pathToFileURL(outFile).href)
       assert.equal((mod as any).foo, 1)
+    } finally {
+      await rm(outFile, { force: true })
+    }
+  })
+
+  it('globals-only rewrites esm globals without touching exports', async t => {
+    const fixturePath = join(fixtures, 'globalsOnly.mjs')
+    const outFile = join(fixtures, 'globalsOnly.out.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      transformSyntax: 'globals-only',
+      out: outFile,
+    })
+
+    assert.ok(result.includes('import.meta.dirname'))
+    assert.ok(result.includes('import.meta.filename'))
+    assert.ok(result.includes('export const here'))
+    assert.equal(result.includes('__exports'), false)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.ok(String(mod.here).includes('fixtures'))
+    assert.ok(String(mod.file).includes('globalsOnly.out.mjs'))
+    assert.ok(String(mod.url).includes('globalsOnly.out.mjs'))
+  })
+
+  it('globals-only rewrites cjs globals without changing export shape', async () => {
+    const fixturePath = join(fixtures, 'globalsOnly.cjs')
+    const outFile = join(fixtures, 'globalsOnly.out.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    try {
+      const result = await transform(fixturePath, {
+        target: 'commonjs',
+        transformSyntax: 'globals-only',
+        out: outFile,
+      })
+
+      assert.ok(result.includes('__dirname'))
+      assert.ok(result.includes('__filename'))
+      assert.ok(result.includes('module.exports'))
+      assert.equal(result.includes('__exports'), false)
+
+      const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+      assert.equal(status, 0)
+
+      const base = requireCjs(fixturePath)
+      const out = requireCjs(outFile)
+      assert.equal(out.here, base.here)
+      assert.equal(out.resolved, base.resolved)
+      assert.equal(out.file, outFile)
     } finally {
       await rm(outFile, { force: true })
     }

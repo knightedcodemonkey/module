@@ -223,6 +223,7 @@ const defaultOptions = {
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
+  idiomaticExports: 'safe',
   topLevelAwait: 'error',
   out: undefined,
   inPlace: false,
