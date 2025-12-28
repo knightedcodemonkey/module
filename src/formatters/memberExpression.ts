@@ -4,12 +4,18 @@ import type { MemberExpression, Node } from 'oxc-parser'
 import type { FormatterOptions } from '../types.js'
 import { exportsRename } from '#utils/exports.js'
 
+type MemberExpressionExtras = {
+  onRequireResolve?: () => void
+  requireResolveName?: string
+}
+
 export const memberExpression = (
   node: MemberExpression,
   parent: Node | null,
   src: MagicString,
   options: FormatterOptions,
   shadowed?: Set<string>,
+  extras?: MemberExpressionExtras,
 ) => {
   if (options.target === 'module') {
     if (
@@ -45,7 +51,8 @@ export const memberExpression = (
           src.update(start, end, 'import.meta.main')
           break
         case 'resolve':
-          src.update(start, end, 'import.meta.resolve')
+          extras?.onRequireResolve?.()
+          src.update(start, end, extras?.requireResolveName ?? 'import.meta.resolve')
           break
         case 'cache':
           /**

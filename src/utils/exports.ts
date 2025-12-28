@@ -30,10 +30,19 @@ const literalPropName = (
 type ExportRef = { key: string; via: 'exports' | 'module.exports' }
 type SimpleIdentifier = { type: 'Identifier'; name: string }
 
+const bindsThis = (ancestor: Node) =>
+  ancestor.type === 'FunctionDeclaration' ||
+  ancestor.type === 'FunctionExpression' ||
+  ancestor.type === 'ClassDeclaration' ||
+  ancestor.type === 'ClassExpression'
+
+const isTopLevelThis = (ancestors?: Node[]) => !ancestors?.some(node => bindsThis(node))
+
 const resolveExportTarget = (
   node: Node,
   aliases: Map<string, ExportRef['via']>,
   literals?: Map<string, string | number>,
+  ancestors?: Node[],
 ) => {
   if (node.type === 'Identifier' && node.name === 'exports') {
     return { key: 'default', via: 'exports' as const }
@@ -56,7 +65,7 @@ const resolveExportTarget = (
   const key = literalPropName(prop, literals)
   if (!key) return null
 
-  const baseVia = resolveBase(base, aliases)
+  const baseVia = resolveBase(base, aliases, ancestors)
   if (!baseVia) return null
 
   if (baseVia === 'module.exports' && key === 'exports') {
@@ -69,11 +78,16 @@ const resolveExportTarget = (
 const resolveBase = (
   node: Node,
   aliases: Map<string, ExportRef['via']>,
+  ancestors?: Node[],
 ): ExportRef['via'] | null => {
   if (node.type === 'Identifier') {
     if (node.name === 'exports') return 'exports'
     const alias = aliases.get(node.name)
     if (alias) return alias
+  }
+
+  if (node.type === 'ThisExpression' && isTopLevelThis(ancestors)) {
+    return 'exports'
   }
 
   if (
@@ -132,7 +146,7 @@ const collectCjsExports = async (ast: Node) => {
         node.id.type === 'Identifier' &&
         node.init
       ) {
-        const via = resolveBase(node.init, aliases)
+        const via = resolveBase(node.init, aliases, ancestors)
         if (via) {
           aliases.set(node.id.name, via)
         }
@@ -159,7 +173,7 @@ const collectCjsExports = async (ast: Node) => {
       }
 
       if (node.type === 'AssignmentExpression') {
-        const target = resolveExportTarget(node.left, aliases, literals)
+        const target = resolveExportTarget(node.left, aliases, literals, ancestors)
 
         if (target) {
           const rhsIdent =
@@ -187,7 +201,7 @@ const collectCjsExports = async (ast: Node) => {
         if (node.left.type === 'ObjectPattern' || node.left.type === 'ArrayPattern') {
           const findExportRefs = (pattern: Node) => {
             if (pattern.type === 'MemberExpression') {
-              const ref = resolveExportTarget(pattern, aliases, literals)
+              const ref = resolveExportTarget(pattern, aliases, literals, ancestors)
               if (ref) addExport(ref, node)
               return
             }
@@ -229,7 +243,7 @@ const collectCjsExports = async (ast: Node) => {
           node.arguments.length >= 2
         ) {
           const targetArg = node.arguments[0]
-          const ref = resolveBase(targetArg as Node, aliases)
+          const ref = resolveBase(targetArg as Node, aliases, ancestors)
           if (!ref) return
 
           for (let i = 1; i < node.arguments.length; i++) {
@@ -260,7 +274,7 @@ const collectCjsExports = async (ast: Node) => {
           callee.property.name === 'defineProperty' &&
           node.arguments.length >= 3
         ) {
-          const target = resolveBase(node.arguments[0] as Node, aliases)
+          const target = resolveBase(node.arguments[0] as Node, aliases, ancestors)
           if (!target) return
 
           const keyName = literalPropName(node.arguments[1] as Node, literals)
@@ -301,7 +315,7 @@ const collectCjsExports = async (ast: Node) => {
           callee.property.name === 'defineProperties' &&
           node.arguments.length >= 2
         ) {
-          const target = resolveBase(node.arguments[0] as Node, aliases)
+          const target = resolveBase(node.arguments[0] as Node, aliases, ancestors)
           if (!target) return
 
           const descMap = node.arguments[1]

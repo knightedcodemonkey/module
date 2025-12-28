@@ -83,6 +83,11 @@ const lowerCjsRequireToImports = (
   let needsCreateRequire = false
   let needsInteropHelper = false
 
+  const isJsonSpecifier = (value: string) => {
+    const base = value.split(/[?#]/)[0] ?? value
+    return base.endsWith('.json')
+  }
+
   for (const stmt of program.body as any[]) {
     if (stmt.type === 'VariableDeclaration') {
       const decls = stmt.declarations
@@ -93,22 +98,43 @@ const lowerCjsRequireToImports = (
       if (allStatic) {
         for (const decl of decls) {
           const init = decl.init!
-          const source = code.slice(init.arguments[0].start, init.arguments[0].end)
+          const arg = init.arguments[0]
+          const source = code.slice(arg.start, arg.end)
+          const value = (arg as any).value as string
+          const isJson = typeof value === 'string' && isJsonSpecifier(value)
 
           const ns = `__cjsImport${nsIndex++}`
 
+          const jsonImport = isJson ? `${source} with { type: "json" }` : source
+
           if (decl.id.type === 'Identifier') {
-            imports.push(`import * as ${ns} from ${source};\n`)
-            hoisted.push(`const ${decl.id.name} = ${requireInteropName}(${ns});\n`)
-            needsInteropHelper = true
+            imports.push(
+              isJson
+                ? `import ${ns} from ${jsonImport};\n`
+                : `import * as ${ns} from ${jsonImport};\n`,
+            )
+            hoisted.push(
+              isJson
+                ? `const ${decl.id.name} = ${ns};\n`
+                : `const ${decl.id.name} = ${requireInteropName}(${ns});\n`,
+            )
+            needsInteropHelper ||= !isJson
           } else if (
             decl.id.type === 'ObjectPattern' ||
             decl.id.type === 'ArrayPattern'
           ) {
             const pattern = code.slice(decl.id.start, decl.id.end)
-            imports.push(`import * as ${ns} from ${source};\n`)
-            hoisted.push(`const ${pattern} = ${requireInteropName}(${ns});\n`)
-            needsInteropHelper = true
+            imports.push(
+              isJson
+                ? `import ${ns} from ${jsonImport};\n`
+                : `import * as ${ns} from ${jsonImport};\n`,
+            )
+            hoisted.push(
+              isJson
+                ? `const ${pattern} = ${ns};\n`
+                : `const ${pattern} = ${requireInteropName}(${ns});\n`,
+            )
+            needsInteropHelper ||= !isJson
           } else {
             needsCreateRequire = true
           }
@@ -130,8 +156,14 @@ const lowerCjsRequireToImports = (
       const expr = stmt.expression
 
       if (expr && isStaticRequire(expr, shadowed)) {
-        const source = code.slice(expr.arguments[0].start, expr.arguments[0].end)
-        imports.push(`import ${source};\n`)
+        const arg = expr.arguments[0]
+        const source = code.slice(arg.start, arg.end)
+        const value = (arg as any).value as string
+        const isJson = typeof value === 'string' && isJsonSpecifier(value)
+
+        const jsonImport = isJson ? `${source} with { type: "json" }` : source
+
+        imports.push(`import ${jsonImport};\n`)
         transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
         continue
       }
@@ -467,6 +499,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     : false
   const requireMainStrategy = opts.requireMainStrategy ?? 'import-meta-main'
   let requireMainNeedsRealpath = false
+  let needsRequireResolveHelper = false
 
   const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
   const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
@@ -665,7 +698,31 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (node.type === 'MemberExpression') {
-        memberExpression(node, parent, code, opts, shadowedBindings)
+        memberExpression(node, parent, code, opts, shadowedBindings, {
+          onRequireResolve: () => {
+            if (shouldRaiseEsm) needsRequireResolveHelper = true
+          },
+          requireResolveName: '__requireResolve',
+        })
+      }
+
+      if (shouldRaiseEsm && node.type === 'ThisExpression') {
+        const bindsThis = (ancestor: any) => {
+          return (
+            ancestor.type === 'FunctionDeclaration' ||
+            ancestor.type === 'FunctionExpression' ||
+            ancestor.type === 'ClassDeclaration' ||
+            ancestor.type === 'ClassExpression'
+          )
+        }
+
+        const bindingAncestor = ancestors.find(ancestor => bindsThis(ancestor))
+        const isTopLevel = !bindingAncestor
+
+        if (isTopLevel) {
+          code.update(node.start, node.end, exportsRename)
+          return
+        }
       }
 
       if (isIdentifierName(node)) {
@@ -755,8 +812,12 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   if (shouldRaiseEsm && opts.transformSyntax) {
     const importPrelude: string[] = []
 
-    if (needsCreateRequire) {
+    if (needsCreateRequire || needsRequireResolveHelper) {
       importPrelude.push('import { createRequire } from "node:module";\n')
+    }
+
+    if (needsRequireResolveHelper) {
+      importPrelude.push('import { fileURLToPath } from "node:url";\n')
     }
 
     if (requireMainNeedsRealpath) {
@@ -782,9 +843,22 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       ? 'const require = createRequire(import.meta.url);\n'
       : ''
 
+    const requireResolveInit = needsRequireResolveHelper
+      ? needsCreateRequire
+        ? `const __requireResolve = (id, parent) => {
+  const resolved = require.resolve(id, parent);
+  return resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved;
+};\n`
+        : `const __requireResolve = (id, parent) => {
+  const req = createRequire(parent ?? import.meta.url);
+  const resolved = req.resolve(id, parent);
+  return resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved;
+};\n`
+      : ''
+
     const prelude = `${importPrelude.join('')}${
       importPrelude.length ? '\n' : ''
-    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}let ${exportsRename} = {};
+    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}let ${exportsRename} = {};
 void import.meta.filename;
 `
 

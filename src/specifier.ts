@@ -164,6 +164,8 @@ const formatSpecifiers = async (src: string, ast: ParseResult, cb: Callback) => 
             node.callee.object.name === 'require' &&
             node.callee.property.type === 'Identifier' &&
             node.callee.property.name === 'resolve') ||
+          (node.callee.type === 'Identifier' &&
+            node.callee.name === '__requireResolve') ||
           (node.callee.type === 'MemberExpression' &&
             node.callee.object.type === 'MetaProperty' &&
             node.callee.object.meta.name === 'import' &&

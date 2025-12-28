@@ -911,20 +911,97 @@ describe('@knighted/module', () => {
     assert.ok(/\smodule\s/.test(result))
   })
 
-  it('transforms commonjs globals to es module globals', async () => {
+  it('transforms commonjs globals to es module globals', async t => {
+    const outFile = join(fixtures, 'file.globals.mjs')
     const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
     assert.equal(result.indexOf('__filename'), -1)
     assert.equal(result.indexOf('__dirname'), -1)
-    assert.equal(result.indexOf('require.resolve'), -1)
+    assert.ok(result.includes('__requireResolve'))
     assert.ok(result.indexOf('import.meta.filename') > -1)
     assert.ok(result.indexOf('import.meta.dirname') > -1)
-    assert.ok(result.indexOf('import.meta.resolve') > -1)
+    assert.equal(/import\.meta\.resolve/.test(result), false)
     // Check `module`, `exports` and `require.cache`
     assert.equal(!/\smodule\s/.test(result), true)
     assert.equal(!/\sexports\s/.test(result), true)
     assert.equal(result.indexOf('require.cache'), -1)
     assert.ok(/import\.meta/.test(result))
     assert.ok(result.indexOf('{}') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+  })
+
+  it('rewrites require.resolve to scoped helper when raising to esm', async t => {
+    const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
+    const outFile = join(fixtures, 'file.resolve.mjs')
+
+    await rm(outFile, { force: true })
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+
+    const requireCjs = createRequire(outFile)
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+
+    assert.ok(result.includes('createRequire'))
+    assert.ok(result.includes('__requireResolve'))
+    assert.equal(/require\.resolve\(\.\/values\.cjs\)/.test(result), false)
+    assert.equal(/import\.meta\.resolve/.test(result), false)
+    assert.equal((exported as any).resolved, requireCjs.resolve('./values.cjs'))
+  })
+
+  it('raises json require to import with attributes', async t => {
+    const fixturePath = join(fixtures, 'requireJson.cjs')
+    const outFile = join(fixtures, 'requireJson.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('with { type: "json" }'))
+    assert.equal(/require\(['"]\.\/data.json['"]\)/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.value, 'alpha')
+    assert.deepEqual(exported.pick, { value: 'alpha', nested: { n: 1 } })
+    assert.equal(exported.side, 'ok')
+  })
+
+  it('rewrites top-level this to exports when raising to esm', async t => {
+    const fixturePath = join(fixtures, 'topLevelThis.cjs')
+    const outFile = join(fixtures, 'topLevelThis.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.equal(/\bthis\b/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported =
+      (mod as any).default ?? (mod as any).self ?? (mod as any).default ?? (mod as any)
+
+    assert.equal(exported.alpha, 1)
+    assert.equal(exported.beta, 2)
+    assert.equal(exported.self, exported)
+    assert.equal(exported.check(), true)
+    assert.equal((mod as any).self, exported)
   })
 
   it('updates specifiers when option enabled', async t => {
@@ -952,8 +1029,12 @@ describe('@knighted/module', () => {
     assert.equal((result.match(/require\.resolve\('\.\/file\.js'\)/g) ?? []).length, 2)
     assert.equal((cjsResult.match(/\.\/file\.mjs/g) ?? []).length, 3)
     assert.equal(
-      (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
+      (cjsResult.match(/__requireResolve\('\.\/file\.mjs'\)/g) ?? []).length,
       1,
+    )
+    assert.equal(
+      (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
+      0,
     )
   })
 
