@@ -42,6 +42,14 @@ Goal: Add an opt-in `idiomaticExports` (current shorthand: `pretty`) mode to red
 - Document diagnostics behavior when `pretty` cannot be applied.
 - Consider a README section on “migration mode” describing pretty output trade-offs and when to avoid it.
 
+## CLI
+
+- Deliver a `knighted-module` CLI that wraps the core transform with parity to API options (targets, rewriteSpecifier, appendJsExtension/appendDirectoryIndex, detectCircularRequires, topLevelAwait, cjsDefault, diagnostics hooks, out/in-place).
+- Input handling: accept file/glob lists plus stdin/stdout piping; respect `package.json` `type` and `.cjs/.mjs` extensions; allow per-invocation overrides via flags and a config file.
+- Output handling: in-place rewrite or out-dir mirroring with extension rewriting; emit diagnostics to stderr and machine-readable JSON when requested; non-zero exit on diagnostics of severity error.
+- Performance ergonomics: batch parse/format where possible, optional concurrency flag, and a `--watch` mode that rebuilds on change with minimal restarts.
+- DX: `--dry-run` to preview planned rewrites, `--list` to show which files would change, `--summary` to print counts of transformed specifiers/globals, and `--help`/`--version` aligned with package metadata.
+
 ## Next Steps
 
 - Prototype CJS→ESM `pretty: 'safe'` path with fixtures and diagnostics.
