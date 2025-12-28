@@ -1,7 +1,7 @@
 {
   "name": "@knighted/module",
   "version": "1.0.0-rc.5",
-  "description": "Transforms differences between ES modules and CommonJS.",
+  "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
   "exports": {
@@ -44,13 +44,12 @@
     "postpack": "node scripts/restoreImportsToSrc.js"
   },
   "keywords": [
-    "transform",
-    "es module",
+    "esm",
     "commonjs",
-    "require",
-    "require.resolve",
-    "import.meta.url",
-    "import.meta.dirname",
+    "transform",
+    "cjs-to-esm",
+    "esm-to-cjs",
+    "import.meta",
     "__dirname",
     "__filename"
   ],
