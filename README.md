@@ -140,6 +140,30 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 > [!NOTE]
 > Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
 
+## Pre-`tsc` transforms for TypeScript diagnostics
+
+TypeScript reports asymmetric module-global errors (e.g., `import.meta` in CJS, `__dirname` in ESM) as tracked in [microsoft/TypeScript#58658](https://github.com/microsoft/TypeScript/issues/58658). You can mitigate this by running `@knighted/module` **before** `tsc` so the checker sees already-rewritten sources.
+
+Minimal flow:
+
+```js
+import { glob } from 'glob'
+import { transform } from '@knighted/module'
+
+const files = await glob('src/**/*.{ts,js,mts,cts}', { ignore: 'node_modules/**' })
+
+for (const file of files) {
+  await transform(file, {
+    target: 'commonjs', // or 'module' when raising CJS → ESM
+    inPlace: true,
+    transformSyntax: true,
+  })
+}
+// then run `tsc`
+```
+
+This pre-`tsc` step removes the flagged globals in the compiled orientation; runtime semantics still match the target build.
+
 ## Roadmap
 
 - Emit source maps and clearer diagnostics for transform choices.
