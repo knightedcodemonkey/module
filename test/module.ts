@@ -514,6 +514,29 @@ describe('@knighted/module', () => {
     )
   })
 
+  it('warns on circular requires when warnings are enabled', async t => {
+    const fixturePath = join(fixtures, 'cycles', 'a.cjs')
+    const warnings: string[] = []
+    /* eslint-disable no-console -- capture warn output for cycle detection */
+    const originalWarn = console.warn
+
+    t.after(() => {
+      console.warn = originalWarn
+    })
+
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(' '))
+    }
+    /* eslint-enable no-console */
+
+    await transform(fixturePath, {
+      target: 'module',
+      detectCircularRequires: 'warn',
+    })
+
+    assert.ok(warnings.some(msg => msg.includes('Circular require detected')))
+  })
+
   it('lifts exports inside control flow when lowering to esm', async t => {
     const fixturePath = join(fixtures, 'exportsControlFlow.cjs')
     const outFile = join(fixtures, 'exportsControlFlow.mjs')
@@ -1125,6 +1148,18 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).value, 42)
   })
 
+  it('skips directory index append when disabled', async () => {
+    const fixturePath = join(fixtures, 'edgecases', 'dirTrailing.cjs')
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      appendDirectoryIndex: false,
+    })
+
+    assert.ok(result.includes('./dir/'))
+    assert.equal(result.includes('./dir/index.js'), false)
+  })
+
   it('emits diagnostics for CJS to ESM edge cases', async () => {
     const fixturePath = join(fixtures, 'diagnostics.cjs')
     const diagnostics: Array<{ code: string }> = []
@@ -1416,6 +1451,176 @@ describe('@knighted/module', () => {
     assert.ok(entryResult.includes('import.meta.main is not supported'))
   })
 
+  it('roundtrips complex fixtures across targets', async t => {
+    const cjsFixture = join(fixtures, 'complexFile.cjs')
+    const esmFixture = join(fixtures, 'complexFile.mjs')
+    const outEsm = join(fixtures, 'complexFile.out.mjs')
+    const outCjs = join(fixtures, 'complexFile.out.cjs')
+    const outEsmUrl = pathToFileURL(outEsm).href
+    const outCjsUrl = pathToFileURL(outCjs).href
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outEsm, { force: true })
+      rm(outCjs, { force: true })
+    })
+
+    const [baseCjs, baseEsm] = await Promise.all([
+      Promise.resolve(requireCjs(cjsFixture)),
+      import(pathToFileURL(esmFixture).href),
+    ])
+
+    const [cjsToEsm, esmToCjs] = await Promise.all([
+      transform(cjsFixture, { target: 'module' }),
+      transform(esmFixture, { target: 'commonjs' }),
+    ])
+
+    await Promise.all([writeFile(outEsm, cjsToEsm), writeFile(outCjs, esmToCjs)])
+
+    const { status: statusEsm } = spawnSync('node', [outEsm], { stdio: 'inherit' })
+    const { status: statusCjs } = spawnSync('node', [outCjs], { stdio: 'inherit' })
+
+    assert.equal(statusEsm, 0)
+    assert.equal(statusCjs, 0)
+
+    const unwrap = (mod: any) => mod.default ?? mod
+    const expectedCjs = unwrap(baseCjs)
+    const expectedEsm = unwrap(baseEsm)
+    const cjs = unwrap(await import(pathToFileURL(outEsm).href))
+    const esm = unwrap(requireCjs(outCjs))
+
+    assert.equal(cjs.base, 'cjs')
+    assert.equal(cjs.extra, expectedCjs.extra)
+    assert.equal(cjs.aliased, 'ok')
+    assert.equal(cjs['weird-key'], 'strange')
+    assert.ok(String(cjs.resolved).includes('values.cjs'))
+    assert.equal(String(cjs.url), outEsmUrl)
+    assert.equal(cjs.dirname, expectedCjs.dirname)
+    assert.equal(cjs.filename, outEsm)
+    assert.equal(cjs.dynamic.foo, 'bar')
+    assert.ok(cjs.file)
+    assert.equal(typeof cjs.load, 'function')
+    assert.equal(cjs.load('values.cjs').foo, 'bar')
+    const cjsStart = cjs.counter
+    assert.equal(cjs.bump(), cjsStart + 1)
+
+    assert.equal(esm.base, 'esm')
+    assert.equal(esm.extra, 'kept')
+    assert.equal(esm.aliased, 'ok')
+    assert.equal(esm.aliasTarget.esmodule, true)
+    assert.equal(esm.fromReexport, 'from-reexport')
+    assert.equal(esm.fromValues, 'bar')
+    assert.equal(esm.computedKey, 'weird-key')
+    assert.equal(esm.computedValue, 'strange')
+    assert.ok(String(esm.resolved).includes('values.mjs'))
+    assert.equal(String(esm.url), outCjsUrl)
+    assert.equal(esm.dirname, expectedEsm.dirname)
+    assert.equal(esm.filename, expectedEsm.filename)
+    assert.ok(esm.file)
+    const loaded = await esm.load('values.mjs')
+    assert.equal((loaded as any).foo ?? (loaded as any).default?.foo, 'bar')
+    const esmStart = esm.counter
+    assert.equal(esm.bump(), esmStart + 1)
+    assert.equal(esm.counter, esmStart + 1)
+  })
+
+  it('handles shadowed params for cjs globals when raising to esm', async t => {
+    const fixturePath = join(fixtures, 'edgecases', 'shadowedParams.cjs')
+    const outFile = join(fixtures, 'edgecases', 'shadowedParams.out.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+
+    assert.equal(exported.topDir.endsWith('edgecases'), true)
+    assert.equal(typeof exported.local.load, 'function')
+  })
+
+  it('warns and still runs mixed module.exports reassignments', async t => {
+    const fixturePath = join(fixtures, 'edgecases', 'mixedReassign.cjs')
+    const outFile = join(fixtures, 'edgecases', 'mixedReassign.out.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const diagnostics: Array<{ code: string }> = []
+    const result = await transform(fixturePath, {
+      target: 'module',
+      diagnostics: diag => diagnostics.push(diag),
+    })
+    await writeFile(outFile, result)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+
+    assert.ok(diagnostics.some(d => d.code === 'cjs-mixed-exports'))
+    assert.equal(exported.gamma, 3)
+    assert.equal(exported.extra, true)
+    assert.equal(exported.beta, undefined)
+  })
+
+  it('wraps TLA with mixed exports when lowering to commonjs', async t => {
+    const fixturePath = join(fixtures, 'edgecases', 'tlaMixed.mjs')
+    const outFile = join(fixtures, 'edgecases', 'tlaMixed.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      topLevelAwait: 'wrap',
+    })
+
+    await writeFile(outFile, result)
+    const mod = requireCjs(outFile)
+    assert.equal(typeof mod.__tla?.then, 'function')
+    await mod.__tla
+    assert.equal(mod.counter, 1)
+    assert.equal(mod.doubled, 2)
+    assert.equal(typeof mod.default, 'function')
+    assert.equal(mod.default(), 1)
+    assert.equal(mod.inc(), 2)
+  })
+
+  it('guards import.meta.main shim behavior when lowering to commonjs', async t => {
+    const fixturePath = join(fixtures, 'edgecases', 'importMetaMainGuard.mjs')
+    const outFile = join(fixtures, 'edgecases', 'importMetaMainGuard.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      importMetaMain: 'warn',
+    })
+    await writeFile(outFile, result)
+
+    const mod = requireCjs(outFile)
+    assert.equal(mod.mainFlag, 'not-main')
+    assert.equal(mod.run(), 'lib-run')
+    assert.ok(result.includes('import.meta.main is not supported'))
+  })
+
+  it('preserves dirname alias export when lowering to commonjs', async t => {
+    const fixturePath = join(fixtures, 'edgecases', 'dirnameAlias.mjs')
+    const outFile = join(fixtures, 'edgecases', 'dirnameAlias.cjs')
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    await writeFile(outFile, result)
+
+    const mod = requireCjs(outFile)
+    assert.equal(mod.dirnameAlias, join(fixtures, 'edgecases'))
+    assert.ok(result.includes('__dirname'))
+  })
+
   it('writes transformed source to a file when option enabled', async t => {
     const mjs = join(fixtures, 'transformed.mjs')
     const cjs = join(fixtures, 'transformed.cjs')
@@ -1433,23 +1638,7 @@ describe('@knighted/module', () => {
 
     const { status: statusCjs } = spawnSync('node', [cjs], { stdio: 'inherit' })
     assert.equal(statusCjs, 0)
-
-    // When option `modules` is complete
-    /*
-    // Check for runtime errors against Node.js
-    const { status: statusEsm } = spawnSync(
-      'node',
-      [mjs],
-      { stdio: 'inherit' },
-    )
+    const { status: statusEsm } = spawnSync('node', [mjs], { stdio: 'inherit' })
     assert.equal(statusEsm, 0)
-
-    const { status: statusCjs } = spawnSync(
-      'node',
-      [cjs],
-      { stdio: 'inherit' },
-    )
-    assert.equal(statusCjs, 0)
-    */
   })
 })

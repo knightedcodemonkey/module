@@ -887,6 +887,11 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       isValidExportName(name)
         ? `${exportsRename}.${name}`
         : `${exportsRename}[${JSON.stringify(name)}]`
+    const exportValueFor = (name: string) => {
+      if (name === '__dirname') return 'import.meta.dirname'
+      if (name === '__filename') return 'import.meta.filename'
+      return name
+    }
     const tempNameFor = (name: string) => {
       const sanitized = name.replace(/[^$\w]/g, '_') || 'value'
       const safe = /^[0-9]/.test(sanitized) ? `_${sanitized}` : sanitized
@@ -909,7 +914,15 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     const defaultEntry = exportTable.get('default')
     if (defaultEntry) {
       const def = defaultEntry.fromIdentifier ?? exportsRename
-      lines.push(`export default ${def};`)
+      const defExpr = exportValueFor(def)
+
+      if (defExpr !== def) {
+        const temp = tempNameFor(def)
+        lines.push(`const ${temp} = ${defExpr};`)
+        lines.push(`export default ${temp};`)
+      } else {
+        lines.push(`export default ${defExpr};`)
+      }
     }
 
     for (const [key, entry] of exportTable) {
@@ -923,7 +936,14 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (entry.fromIdentifier) {
-        lines.push(`export { ${entry.fromIdentifier} as ${asExportName(key)} };`)
+        const resolved = exportValueFor(entry.fromIdentifier)
+        if (resolved !== entry.fromIdentifier) {
+          const temp = tempNameFor(entry.fromIdentifier)
+          lines.push(`const ${temp} = ${resolved};`)
+          lines.push(`export { ${temp} as ${asExportName(key)} };`)
+        } else {
+          lines.push(`export { ${resolved} as ${asExportName(key)} };`)
+        }
       } else {
         const temp = tempNameFor(key)
         lines.push(`const ${temp} = ${accessProp(key)};`)
