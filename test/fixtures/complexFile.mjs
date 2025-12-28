@@ -1,6 +1,7 @@
 // Complex ESM fixture combining common patterns
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { dirname, filename } from './meta.mjs'
 import * as helpers from './values.mjs'
 export * from './reexport.mjs'
@@ -25,7 +26,7 @@ export const url = import.meta.url
 export { dirname, filename }
 
 export async function load(name) {
-  const mod = await import(join(dirname, name))
+  const mod = await import(pathToFileURL(join(dirname, name)).href)
   return mod.default ?? mod
 }
 
