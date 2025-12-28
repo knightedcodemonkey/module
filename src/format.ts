@@ -1,5 +1,5 @@
 import type { ParseResult } from 'oxc-parser'
-import type { FormatterOptions, ExportsMeta } from './types.js'
+import type { FormatterOptions, ExportsMeta, Diagnostic } from './types.js'
 import MagicString from 'magic-string'
 
 import { identifier } from '#formatters/identifier.js'
@@ -496,6 +496,38 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     hasDefaultExportBeenReassigned: false,
     hasDefaultExportBeenAssigned: false,
   } satisfies ExportsMeta
+  const warned = new Set<string>()
+  const emitDiagnostic = (diag: Diagnostic) => {
+    if (opts.diagnostics) {
+      opts.diagnostics(diag)
+      return
+    }
+
+    if (diag.level === 'warning') {
+      // eslint-disable-next-line no-console -- used for opt-in diagnostics
+      console.warn(diag.message)
+      return
+    }
+
+    // eslint-disable-next-line no-console -- used for opt-in diagnostics
+    console.error(diag.message)
+  }
+  const warnOnce = (
+    codeId: string,
+    message: string,
+    loc?: { start: number; end: number },
+  ) => {
+    const key = `${codeId}:${loc?.start ?? ''}`
+    if (warned.has(key)) return
+    warned.add(key)
+    emitDiagnostic({
+      level: 'warning',
+      code: codeId,
+      message,
+      filePath: opts.filePath,
+      loc,
+    })
+  }
   const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
   const shadowedBindings = new Set(
     [...moduleIdentifiers.entries()]
@@ -513,6 +545,29 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
+  if (opts.target === 'module' && exportTable) {
+    const hasExportsVia = [...exportTable.values()].some(entry =>
+      entry.via.has('exports'),
+    )
+    const hasModuleExportsVia = [...exportTable.values()].some(entry =>
+      entry.via.has('module.exports'),
+    )
+
+    if (hasExportsVia && hasModuleExportsVia) {
+      const firstExports = [...exportTable.values()].find(entry =>
+        entry.via.has('exports'),
+      )?.writes[0]
+      const firstModule = [...exportTable.values()].find(entry =>
+        entry.via.has('module.exports'),
+      )?.writes[0]
+
+      warnOnce(
+        'cjs-mixed-exports',
+        'Both module.exports and exports are assigned in this module; CommonJS shadowing may not match synthesized ESM exports.',
+        { start: firstModule?.start ?? 0, end: firstExports?.end ?? 0 },
+      )
+    }
+  }
   const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
@@ -559,6 +614,18 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   await ancestorWalk(ast.program, {
     async enter(node, ancestors) {
       const parent = ancestors[ancestors.length - 2] ?? null
+
+      if (
+        shouldRaiseEsm &&
+        node.type === 'ReturnStatement' &&
+        parent?.type === 'Program'
+      ) {
+        warnOnce(
+          'top-level-return',
+          'Top-level return is not allowed in ESM; the transformed module will fail to parse.',
+          { start: node.start, end: node.end },
+        )
+      }
 
       if (shouldRaiseEsm && node.type === 'BinaryExpression') {
         const op = node.operator
@@ -742,6 +809,9 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
             if (shouldRaiseEsm) needsRequireResolveHelper = true
           },
           requireResolveName: '__requireResolve',
+          onDiagnostic: (codeId, message, loc) => {
+            if (shouldRaiseEsm) warnOnce(codeId, message, loc)
+          },
         })
       }
 
@@ -823,6 +893,17 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       return `__export_${safe}`
     }
 
+    for (const [key, entry] of exportTable) {
+      if (entry.reassignments.length) {
+        const loc = entry.reassignments[0]
+        warnOnce(
+          `cjs-export-reassignment:${key}`,
+          `Export '${key}' is reassigned after export; ESM live bindings may change consumer behavior.`,
+          { start: loc.start, end: loc.end },
+        )
+      }
+    }
+
     const lines: string[] = []
 
     const defaultEntry = exportTable.get('default')
@@ -833,6 +914,13 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
     for (const [key, entry] of exportTable) {
       if (key === 'default') continue
+
+      if (!isValidExportName(key)) {
+        warnOnce(
+          `cjs-string-export:${key}`,
+          `Synthesized string-literal export '${key}'. Some tooling may require bracket access to use it.`,
+        )
+      }
 
       if (entry.fromIdentifier) {
         lines.push(`export { ${entry.fromIdentifier} as ${asExportName(key)} };`)

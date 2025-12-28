@@ -1125,6 +1125,24 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).value, 42)
   })
 
+  it('emits diagnostics for CJS to ESM edge cases', async () => {
+    const fixturePath = join(fixtures, 'diagnostics.cjs')
+    const diagnostics: Array<{ code: string }> = []
+
+    await transform(fixturePath, {
+      target: 'module',
+      diagnostics: diag => diagnostics.push(diag),
+    })
+
+    const codes = diagnostics.map(d => d.code).sort()
+
+    assert.ok(codes.includes('cjs-mixed-exports'))
+    assert.ok(codes.some(code => code.startsWith('cjs-export-reassignment:foo')))
+    assert.ok(codes.includes('cjs-string-export:weird-name'))
+    assert.ok(codes.includes('top-level-return'))
+    assert.ok(codes.includes('legacy-require-cache'))
+  })
+
   it('normalizes builtin specifiers to the node: protocol', async t => {
     const specifierRoot = join(fixtures, 'specifier')
     const fixturePath = join(specifierRoot, 'builtin.cjs')

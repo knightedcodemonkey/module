@@ -151,6 +151,36 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 > [!NOTE]
 > Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
 
+### Diagnostics callback example
+
+Pass a `diagnostics` callback to surface CJS→ESM edge cases (mixed `module.exports`/`exports`, top-level `return`, legacy `require.cache`/`require.extensions`, live-binding reassignments, string-literal export names):
+
+```ts
+import { transform } from '@knighted/module'
+
+const diagnostics: any[] = []
+
+await transform('./file.cjs', {
+  target: 'module',
+  diagnostics: diag => diagnostics.push(diag),
+})
+
+console.log(diagnostics)
+// [
+//   {
+//     level: 'warning',
+//     code: 'cjs-mixed-exports',
+//     message: 'Both module.exports and exports are assigned in this module; CommonJS shadowing may not match synthesized ESM exports.',
+//     filePath: './file.cjs',
+//     loc: { start: 12, end: 48 }
+//   },
+//   ...
+// ]
+```
+
+> [!WARNING]
+> When raising CommonJS to ESM, synthesized named exports rely on literal keys and `const` literal aliases (e.g., `const key = 'foo'; exports[key] = value`). `var`/`let` bindings used as export keys are not tracked, so prefer direct property names or `const` literals when exporting.
+
 ## Pre-`tsc` transforms for TypeScript diagnostics
 
 TypeScript reports asymmetric module-global errors (e.g., `import.meta` in CJS, `__dirname` in ESM) as tracked in [microsoft/TypeScript#58658](https://github.com/microsoft/TypeScript/issues/58658). You can mitigate this by running `@knighted/module` **before** `tsc` so the checker sees already-rewritten sources.

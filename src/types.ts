@@ -51,10 +51,22 @@ export type ModuleOptions = {
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   /** Handling for top-level await constructs. */
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
+  /** Optional diagnostics sink for warnings/errors emitted during transform. */
+  diagnostics?: (diag: Diagnostic) => void
+  /** Optional source file path used for diagnostics context. */
+  filePath?: string
   /** Output directory or file path when writing. */
   out?: string
   /** Overwrite input files instead of writing to out. */
   inPlace?: boolean
+}
+
+export type Diagnostic = {
+  level: 'warning' | 'error'
+  code: string
+  message: string
+  filePath?: string
+  loc?: { start: number; end: number }
 }
 
 export type SpannedNode = Node & Span

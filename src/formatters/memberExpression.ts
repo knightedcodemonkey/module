@@ -7,6 +7,11 @@ import { exportsRename } from '#utils/exports.js'
 type MemberExpressionExtras = {
   onRequireResolve?: () => void
   requireResolveName?: string
+  onDiagnostic?: (
+    code: string,
+    message: string,
+    loc?: { start: number; end: number },
+  ) => void
 }
 
 export const memberExpression = (
@@ -59,7 +64,19 @@ export const memberExpression = (
            * Can of worms here. ¯\_(ツ)_/¯
            * @see https://github.com/nodejs/help/issues/2806
            */
+          extras?.onDiagnostic?.(
+            'legacy-require-cache',
+            'Access to require.cache is not supported when raising to ESM; behavior may differ.',
+            { start, end },
+          )
           src.update(start, end, '{}')
+          break
+        case 'extensions':
+          extras?.onDiagnostic?.(
+            'legacy-require-extensions',
+            'Access to require.extensions is not supported when raising to ESM; use loaders instead.',
+            { start, end },
+          )
           break
       }
     }
@@ -73,6 +90,20 @@ export const memberExpression = (
       if (!shadowed?.has('module')) {
         src.update(node.start, node.end, 'require')
       }
+      return
+    }
+
+    if (
+      node.object.type === 'Identifier' &&
+      node.property.type === 'Identifier' &&
+      node.object.name === 'module' &&
+      (node.property.name === 'parent' || node.property.name === 'children')
+    ) {
+      extras?.onDiagnostic?.(
+        `legacy-module-${node.property.name}`,
+        `Access to module.${node.property.name} may not behave the same in ESM; consider loaders or explicit wiring instead.`,
+        { start: node.start, end: node.end },
+      )
     }
   }
 }

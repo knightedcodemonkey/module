@@ -228,7 +228,7 @@ const defaultOptions = {
   inPlace: false,
 } satisfies ModuleOptions
 const transform = async (filename: string, options: ModuleOptions = defaultOptions) => {
-  const opts = { ...defaultOptions, ...options }
+  const opts = { ...defaultOptions, ...options, filePath: filename }
   const appendMode: AppendJsExtensionMode =
     options?.appendJsExtension ?? (opts.target === 'module' ? 'relative-only' : 'off')
   const dirIndex =
