@@ -14,6 +14,53 @@ import { ancestorWalk } from '#walk'
 
 const isValidIdent = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
 
+const expressionHasRequireCall = (node: any, shadowed: Set<string>) => {
+  let found = false
+
+  const walkNode = (n: any) => {
+    if (!n || found) return
+
+    if (
+      n.type === 'CallExpression' &&
+      n.callee?.type === 'Identifier' &&
+      n.callee.name === 'require' &&
+      !shadowed.has('require')
+    ) {
+      found = true
+      return
+    }
+
+    if (
+      n.type === 'CallExpression' &&
+      n.callee?.type === 'MemberExpression' &&
+      n.callee.object?.type === 'Identifier' &&
+      n.callee.object.name === 'require' &&
+      !shadowed.has('require')
+    ) {
+      found = true
+      return
+    }
+
+    const keys = Object.keys(n)
+    for (const key of keys) {
+      const value = (n as any)[key]
+      if (!value) continue
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item && typeof item === 'object') walkNode(item)
+          if (found) return
+        }
+      } else if (value && typeof value === 'object') {
+        walkNode(value)
+        if (found) return
+      }
+    }
+  }
+
+  walkNode(node)
+  return found
+}
+
 const exportAssignment = (
   name: string,
   expr: string,
@@ -545,6 +592,16 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
   const exportTable =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
+  const idiomaticMode =
+    opts.target === 'module' && opts.transformSyntax
+      ? (opts.idiomaticExports ?? 'safe')
+      : 'off'
+  let useExportsBag = true
+  let idiomaticPlan: {
+    replacements: Array<{ start: number; end: number }>
+    exports: string[]
+  } | null = null
+  let idiomaticFallbackReason: string | undefined
   if (opts.target === 'module' && exportTable) {
     const hasExportsVia = [...exportTable.values()].some(entry =>
       entry.via.has('exports'),
@@ -567,11 +624,187 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         { start: firstModule?.start ?? 0, end: firstExports?.end ?? 0 },
       )
     }
+
+    const reservedExports = new Set([
+      'await',
+      'break',
+      'case',
+      'catch',
+      'class',
+      'const',
+      'continue',
+      'debugger',
+      'default',
+      'delete',
+      'do',
+      'else',
+      'enum',
+      'export',
+      'extends',
+      'false',
+      'finally',
+      'for',
+      'function',
+      'if',
+      'implements',
+      'import',
+      'in',
+      'instanceof',
+      'interface',
+      'let',
+      'new',
+      'null',
+      'package',
+      'private',
+      'protected',
+      'public',
+      'return',
+      'static',
+      'super',
+      'switch',
+      'this',
+      'throw',
+      'true',
+      'try',
+      'typeof',
+      'var',
+      'void',
+      'while',
+      'with',
+      'yield',
+    ])
+    const isValidExportName = (name: string) =>
+      /^[$A-Z_a-z][$\w]*$/.test(name) && !reservedExports.has(name)
+    const isAllowedRhs = (node: any) => {
+      return (
+        node.type === 'Identifier' ||
+        node.type === 'Literal' ||
+        node.type === 'FunctionExpression' ||
+        node.type === 'ArrowFunctionExpression' ||
+        node.type === 'ClassExpression'
+      )
+    }
+
+    const buildIdiomaticPlan = () => {
+      if (idiomaticMode === 'off') return { ok: false, reason: 'disabled' }
+
+      const entries = [...exportTable.values()]
+      if (!entries.length) return { ok: false, reason: 'no-exports' }
+
+      if ((exportTable as any).hasUnsupportedExportWrite) {
+        return { ok: false, reason: 'unsupported-left' }
+      }
+
+      const viaSet = new Set<string>()
+      for (const entry of entries) {
+        entry.via.forEach(v => viaSet.add(v))
+        if (entry.hasGetter) return { ok: false, reason: 'getter-present' }
+        if (entry.reassignments.length) return { ok: false, reason: 'reassignment' }
+        if (entry.hasNonTopLevelWrite) return { ok: false, reason: 'non-top-level' }
+        if (entry.writes.length !== 1) return { ok: false, reason: 'multiple-writes' }
+        if (!isValidExportName(entry.key))
+          return { ok: false, reason: 'non-identifier-key' }
+      }
+
+      if (viaSet.size > 1) return { ok: false, reason: 'mixed-exports' }
+
+      const replacements: Array<{ start: number; end: number }> = []
+      const exportsOut: string[] = []
+      const seen = new Set<string>()
+
+      const requireShadowed = shadowedBindings
+
+      const rhsSourceFor = (node: any) => {
+        const raw = code.slice(node.start, node.end)
+        return raw
+          .replace(/\b__dirname\b/g, 'import.meta.dirname')
+          .replace(/\b__filename\b/g, 'import.meta.filename')
+      }
+
+      for (const entry of entries) {
+        const write = entry.writes[0] as any
+        if (write.type !== 'AssignmentExpression') {
+          return { ok: false, reason: 'unsupported-write-kind' }
+        }
+
+        const left = write.left
+        if (
+          left.type !== 'MemberExpression' ||
+          left.computed ||
+          left.property.type !== 'Identifier'
+        ) {
+          return { ok: false, reason: 'unsupported-left' }
+        }
+
+        const base = left.object
+        const propName = left.property.name
+        const baseIsExports = base.type === 'Identifier' && base.name === 'exports'
+        const baseIsModuleExports =
+          base.type === 'MemberExpression' &&
+          base.object.type === 'Identifier' &&
+          base.object.name === 'module' &&
+          base.property.type === 'Identifier' &&
+          base.property.name === 'exports'
+
+        if (!baseIsExports && !baseIsModuleExports) {
+          return { ok: false, reason: 'unsupported-base' }
+        }
+
+        const rhs = write.right
+        if (!isAllowedRhs(rhs)) return { ok: false, reason: 'unsupported-rhs' }
+        if (expressionHasRequireCall(rhs, requireShadowed)) {
+          return { ok: false, reason: 'rhs-require' }
+        }
+
+        const rhsSrc = rhsSourceFor(rhs)
+        if (propName === 'exports' && baseIsModuleExports) {
+          // module.exports = ... handles default
+          if (seen.has('default')) return { ok: false, reason: 'duplicate-default' }
+          seen.add('default')
+          exportsOut.push(`export default ${rhsSrc};`)
+        } else {
+          if (seen.has(propName)) return { ok: false, reason: 'duplicate-key' }
+          seen.add(propName)
+          if (rhs.type === 'Identifier') {
+            const rhsId = rhsSourceFor(rhs)
+            if (rhsId === rhs.name) {
+              exportsOut.push(`export { ${rhsId} as ${propName} };`)
+            } else {
+              exportsOut.push(`export const ${propName} = ${rhsId};`)
+            }
+          } else {
+            exportsOut.push(`export const ${propName} = ${rhsSrc};`)
+          }
+        }
+
+        replacements.push({ start: write.start, end: write.end })
+      }
+
+      if (!seen.size) return { ok: false, reason: 'no-seen' }
+
+      return { ok: true, plan: { replacements, exports: exportsOut } }
+    }
+
+    if (idiomaticMode !== 'off') {
+      const res = buildIdiomaticPlan()
+      if (res.ok && res.plan) {
+        useExportsBag = false
+        idiomaticPlan = res.plan
+      } else if (res.reason) {
+        idiomaticFallbackReason = res.reason
+      }
+    }
   }
   const shouldCheckTopLevelAwait = opts.target === 'commonjs' && opts.transformSyntax
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
     : false
+  if (idiomaticFallbackReason && idiomaticMode !== 'off') {
+    warnOnce(
+      'idiomatic-exports-fallback',
+      `Idiomatic exports disabled for this file: ${idiomaticFallbackReason}. Falling back to helper exports.`,
+    )
+  }
   const requireMainStrategy = opts.requireMainStrategy ?? 'import-meta-main'
   let requireMainNeedsRealpath = false
   let needsRequireResolveHelper = false
@@ -804,15 +1037,23 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (node.type === 'MemberExpression') {
-        memberExpression(node, parent, code, opts, shadowedBindings, {
-          onRequireResolve: () => {
-            if (shouldRaiseEsm) needsRequireResolveHelper = true
+        memberExpression(
+          node,
+          parent,
+          code,
+          opts,
+          shadowedBindings,
+          {
+            onRequireResolve: () => {
+              if (shouldRaiseEsm) needsRequireResolveHelper = true
+            },
+            requireResolveName: '__requireResolve',
+            onDiagnostic: (codeId, message, loc) => {
+              if (shouldRaiseEsm) warnOnce(codeId, message, loc)
+            },
           },
-          requireResolveName: '__requireResolve',
-          onDiagnostic: (codeId, message, loc) => {
-            if (shouldRaiseEsm) warnOnce(codeId, message, loc)
-          },
-        })
+          useExportsBag,
+        )
       }
 
       if (shouldRaiseEsm && node.type === 'ThisExpression') {
@@ -842,6 +1083,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
           opts,
           meta: exportsMeta,
           shadowed: shadowedBindings,
+          useExportsBag,
         })
       }
     },
@@ -850,6 +1092,21 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   if (pendingRequireTransforms.length) {
     for (const t of pendingRequireTransforms) {
       code.overwrite(t.start, t.end, t.code)
+    }
+  }
+
+  if (!useExportsBag && idiomaticPlan) {
+    if (idiomaticPlan.exports.length === idiomaticPlan.replacements.length) {
+      idiomaticPlan.replacements.forEach((rep, idx) => {
+        code.overwrite(rep.start, rep.end, idiomaticPlan!.exports[idx])
+      })
+    } else {
+      for (const rep of idiomaticPlan.replacements) {
+        code.overwrite(rep.start, rep.end, ';')
+      }
+      if (idiomaticPlan.exports.length) {
+        code.append(`\n${idiomaticPlan.exports.join('\n')}\n`)
+      }
     }
   }
 
@@ -879,7 +1136,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     }
   }
 
-  if (opts.target === 'module' && opts.transformSyntax && exportTable) {
+  if (useExportsBag && opts.target === 'module' && opts.transformSyntax && exportTable) {
     const isValidExportName = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
     const asExportName = (name: string) =>
       isValidExportName(name) ? name : JSON.stringify(name)
@@ -1003,10 +1260,16 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 };\n`
       : ''
 
+    const exportsBagInit = useExportsBag
+      ? `let ${exportsRename} = {};
+`
+      : ''
+
+    const modulePrelude = ''
+
     const prelude = `${importPrelude.join('')}${
       importPrelude.length ? '\n' : ''
-    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}let ${exportsRename} = {};
-void import.meta.filename;
+    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}${exportsBagInit}${modulePrelude}void import.meta.filename;
 `
 
     code.prepend(prelude)

@@ -21,8 +21,40 @@ export const memberExpression = (
   options: FormatterOptions,
   shadowed?: Set<string>,
   extras?: MemberExpressionExtras,
+  useExportsBag: boolean = true,
 ) => {
   if (options.target === 'module') {
+    if (!useExportsBag) {
+      if (
+        parent?.type === 'MemberExpression' &&
+        parent.object === node &&
+        parent.property.type === 'Identifier'
+      ) {
+        const baseIsExportsIdent =
+          node.object.type === 'Identifier' && node.object.name === 'exports'
+        const baseIsModuleExports =
+          node.object.type === 'Identifier' &&
+          node.object.name === 'module' &&
+          node.property.type === 'Identifier' &&
+          node.property.name === 'exports'
+
+        if (baseIsExportsIdent || baseIsModuleExports) {
+          src.update(parent.start, parent.end, parent.property.name)
+          return
+        }
+      }
+
+      if (
+        node.object.type === 'Identifier' &&
+        node.property.type === 'Identifier' &&
+        node.object.name === 'module' &&
+        node.property.name === 'exports'
+      ) {
+        src.update(node.start, node.end, 'undefined')
+        return
+      }
+    }
+
     if (
       (node.object.type === 'Identifier' && shadowed?.has(node.object.name)) ||
       (node.property.type === 'Identifier' && shadowed?.has(node.property.name))
@@ -35,7 +67,9 @@ export const memberExpression = (
       node.object.name === 'module' &&
       node.property.name === 'exports'
     ) {
-      src.update(node.start, node.end, exportsRename)
+      if (useExportsBag) {
+        src.update(node.start, node.end, exportsRename)
+      }
       return
     }
 

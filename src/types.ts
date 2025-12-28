@@ -49,6 +49,8 @@ export type ModuleOptions = {
   nestedRequireStrategy?: 'create-require' | 'dynamic-import'
   /** Default interop style for CommonJS default imports. */
   cjsDefault?: 'module-exports' | 'auto' | 'none'
+  /** Emit idiomatic exports when raising CJS to ESM. */
+  idiomaticExports?: 'off' | 'safe' | 'aggressive'
   /** Handling for top-level await constructs. */
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
   /** Optional diagnostics sink for warnings/errors emitted during transform. */
@@ -85,6 +87,7 @@ export type CjsExport = {
   via: Set<'exports' | 'module.exports'>
   reassignments: SpannedNode[]
   hasGetter?: boolean
+  hasNonTopLevelWrite?: boolean
 }
 
 export type IdentMeta = {

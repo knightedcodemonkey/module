@@ -1160,6 +1160,77 @@ describe('@knighted/module', () => {
     assert.equal(result.includes('./dir/index.js'), false)
   })
 
+  it('emits idiomatic exports in safe CJS files', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticSafe.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.equal(result.includes('__exports'), false)
+    assert.ok(/export const foo\s*=\s*1/.test(result))
+    assert.ok(result.includes('export const bar'))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+    assert.equal(typeof (mod as any).bar, 'function')
+    assert.equal((mod as any).bar(), 'bar')
+  })
+
+  it('respects idiomaticExports: off and keeps helper bag', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticOff.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      idiomaticExports: 'off',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('__exports'))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+  })
+
+  it('honors idiomaticExports: aggressive (currently same as safe)', async t => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+    const outFile = join(fixtures, 'idiomaticAggressive.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      idiomaticExports: 'aggressive',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.equal(result.includes('__exports'), false)
+    assert.ok(/export const foo\s*=\s*1/.test(result))
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+  })
+
+  it('falls back to helper exports when idiomatic is unsafe', async () => {
+    const fixturePath = join(fixtures, 'idiomaticFallback.cjs')
+    const diagnostics: Array<{ code: string }> = []
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      diagnostics: diag => diagnostics.push(diag),
+    })
+
+    assert.ok(result.includes('__exports'))
+    assert.ok(diagnostics.some(d => d.code === 'idiomatic-exports-fallback'))
+  })
+
   it('emits diagnostics for CJS to ESM edge cases', async () => {
     const fixturePath = join(fixtures, 'diagnostics.cjs')
     const diagnostics: Array<{ code: string }> = []
