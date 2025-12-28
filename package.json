@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.0.0-rc.6",
+  "version": "1.0.0",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",

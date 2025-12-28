@@ -147,6 +147,10 @@ const formatSpecifiers = async (src: string, ast: ParseResult, cb: Callback) => 
 
   await walk(ast.program, {
     enter(node) {
+      if (node.type === 'ImportExpression') {
+        formatExpression(node)
+      }
+
       if (node.type === 'ExpressionStatement') {
         const { expression } = node
 

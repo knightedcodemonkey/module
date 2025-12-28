@@ -77,7 +77,7 @@ const rewriteSpecifierValue = (
   const relative = /^(?:\.\.?)\//
 
   if (relative.test(collapsed)) {
-    return value.replace(/(.+)\.(?:m|c)?(?:j|t)s([)'"]*)?$/, `$1${rewriteSpecifier}$2`)
+    return value.replace(/(.+)\.(?:m|c)?(?:j|t)sx?([)'"]*)?$/, `$1${rewriteSpecifier}$2`)
   }
 }
 

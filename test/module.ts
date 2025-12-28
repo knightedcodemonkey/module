@@ -1501,6 +1501,39 @@ describe('@knighted/module', () => {
     }
   })
 
+  it('rewrites ts/tsx/jsx specifiers for a bundler-style web app', async () => {
+    const projectRoot = join(fixtures, 'projects', 'ts-webapp')
+    const mainFile = join(projectRoot, 'src', 'main.tsx')
+    const appFile = join(projectRoot, 'src', 'ui', 'app.tsx')
+
+    const [mainOut, appOut] = await Promise.all([
+      transform(mainFile, {
+        target: 'module',
+        transformSyntax: 'globals-only',
+        rewriteSpecifier: '.js',
+      }),
+      transform(appFile, {
+        target: 'module',
+        transformSyntax: 'globals-only',
+        rewriteSpecifier: '.js',
+      }),
+    ])
+
+    assert.ok(mainOut.includes("from './ui/app.js'"))
+    assert.ok(mainOut.includes("from './utils/config.js'"))
+    assert.ok(mainOut.includes("import('./ui/app.js')"))
+    assert.ok(mainOut.includes("import('./utils/config.js')"))
+    assert.equal(mainOut.includes('.tsx'), false)
+
+    assert.ok(appOut.includes("from './view.js'"))
+    assert.ok(appOut.includes("from '../utils/config.js'"))
+    assert.ok(
+      appOut.includes("<View title={config.title} target={config.targetId ?? 'root'} />"),
+    )
+    assert.equal(appOut.includes('.tsx'), false)
+    assert.equal(appOut.includes('.jsx'), false)
+  })
+
   it('converts a small commonjs project to esm', async t => {
     const projectRoot = join(fixtures, 'projects', 'cjs-app')
     const entry = join(projectRoot, 'index.cjs')
