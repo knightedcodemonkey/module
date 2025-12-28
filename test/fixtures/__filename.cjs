@@ -1,5 +1,8 @@
 __filename
 
+const thing = {}
+const other = { thing: {} }
+
 const filename = __filename
 const a = [__filename, 'foo']
 const obj = new String(__filename + 'foo')

@@ -29,6 +29,8 @@ const exportAssignment = (
 
 const defaultInteropName = '__interopDefault'
 const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModule ? mod.default : mod);\n`
+const requireInteropName = '__requireDefault'
+const requireInteropHelper = `const ${requireInteropName} = mod => (mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod);\n`
 
 const isRequireCallee = (callee: any, shadowed: Set<string>) => {
   if (
@@ -76,8 +78,15 @@ const lowerCjsRequireToImports = (
 ) => {
   const transforms: RequireTransform[] = []
   const imports: string[] = []
+  const hoisted: string[] = []
   let nsIndex = 0
   let needsCreateRequire = false
+  let needsInteropHelper = false
+
+  const isJsonSpecifier = (value: string) => {
+    const base = value.split(/[?#]/)[0] ?? value
+    return base.endsWith('.json')
+  }
 
   for (const stmt of program.body as any[]) {
     if (stmt.type === 'VariableDeclaration') {
@@ -89,15 +98,43 @@ const lowerCjsRequireToImports = (
       if (allStatic) {
         for (const decl of decls) {
           const init = decl.init!
-          const source = code.slice(init.arguments[0].start, init.arguments[0].end)
+          const arg = init.arguments[0]
+          const source = code.slice(arg.start, arg.end)
+          const value = (arg as any).value as string
+          const isJson = typeof value === 'string' && isJsonSpecifier(value)
+
+          const ns = `__cjsImport${nsIndex++}`
+
+          const jsonImport = isJson ? `${source} with { type: "json" }` : source
 
           if (decl.id.type === 'Identifier') {
-            imports.push(`import * as ${decl.id.name} from ${source};\n`)
-          } else if (decl.id.type === 'ObjectPattern') {
-            const ns = `__cjsImport${nsIndex++}`
+            imports.push(
+              isJson
+                ? `import ${ns} from ${jsonImport};\n`
+                : `import * as ${ns} from ${jsonImport};\n`,
+            )
+            hoisted.push(
+              isJson
+                ? `const ${decl.id.name} = ${ns};\n`
+                : `const ${decl.id.name} = ${requireInteropName}(${ns});\n`,
+            )
+            needsInteropHelper ||= !isJson
+          } else if (
+            decl.id.type === 'ObjectPattern' ||
+            decl.id.type === 'ArrayPattern'
+          ) {
             const pattern = code.slice(decl.id.start, decl.id.end)
-            imports.push(`import * as ${ns} from ${source};\n`)
-            imports.push(`const ${pattern} = ${ns};\n`)
+            imports.push(
+              isJson
+                ? `import ${ns} from ${jsonImport};\n`
+                : `import * as ${ns} from ${jsonImport};\n`,
+            )
+            hoisted.push(
+              isJson
+                ? `const ${pattern} = ${ns};\n`
+                : `const ${pattern} = ${requireInteropName}(${ns});\n`,
+            )
+            needsInteropHelper ||= !isJson
           } else {
             needsCreateRequire = true
           }
@@ -119,8 +156,14 @@ const lowerCjsRequireToImports = (
       const expr = stmt.expression
 
       if (expr && isStaticRequire(expr, shadowed)) {
-        const source = code.slice(expr.arguments[0].start, expr.arguments[0].end)
-        imports.push(`import ${source};\n`)
+        const arg = expr.arguments[0]
+        const source = code.slice(arg.start, arg.end)
+        const value = (arg as any).value as string
+        const isJson = typeof value === 'string' && isJsonSpecifier(value)
+
+        const jsonImport = isJson ? `${source} with { type: "json" }` : source
+
+        imports.push(`import ${jsonImport};\n`)
         transforms.push({ start: stmt.start, end: stmt.end, code: ';\n' })
         continue
       }
@@ -131,7 +174,7 @@ const lowerCjsRequireToImports = (
     }
   }
 
-  return { transforms, imports, needsCreateRequire }
+  return { transforms, imports, hoisted, needsCreateRequire, needsInteropHelper }
 }
 
 const isRequireMainMember = (node: any, shadowed: Set<string>) =>
@@ -185,6 +228,26 @@ const hasTopLevelAwait = (program: any) => {
 
   walkNode(program, false)
   return found
+}
+
+const isAsyncContext = (ancestors: any[]) => {
+  for (let i = ancestors.length - 1; i >= 0; i -= 1) {
+    const node = ancestors[i]
+    if (
+      node.type === 'FunctionDeclaration' ||
+      node.type === 'FunctionExpression' ||
+      node.type === 'ArrowFunctionExpression'
+    ) {
+      return !!node.async
+    }
+
+    if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      return false
+    }
+  }
+
+  // Program scope (top-level) supports await in ESM.
+  return true
 }
 
 const lowerEsmToCjs = (
@@ -454,12 +517,18 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   const containsTopLevelAwait = shouldCheckTopLevelAwait
     ? hasTopLevelAwait(ast.program)
     : false
+  const requireMainStrategy = opts.requireMainStrategy ?? 'import-meta-main'
+  let requireMainNeedsRealpath = false
+  let needsRequireResolveHelper = false
+  const nestedRequireStrategy = opts.nestedRequireStrategy ?? 'create-require'
 
   const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
   const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
   let hoistedImports: string[] = []
+  let hoistedStatements: string[] = []
   let pendingRequireTransforms: RequireTransform[] = []
   let needsCreateRequire = false
+  let needsImportInterop = false
   let pendingCjsTransforms: {
     transforms: Array<ImportTransform | ExportTransform>
     needsInterop: boolean
@@ -475,12 +544,16 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     const {
       transforms,
       imports,
+      hoisted,
       needsCreateRequire: reqCreate,
+      needsInteropHelper: reqInteropHelper,
     } = lowerCjsRequireToImports(ast.program, code, shadowedBindings)
 
     pendingRequireTransforms = transforms
     hoistedImports = imports
+    hoistedStatements = hoisted
     needsCreateRequire = reqCreate
+    needsImportInterop = reqInteropHelper
   }
 
   await ancestorWalk(ast.program, {
@@ -505,11 +578,14 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
           if ((leftMain && rightModule) || (rightMain && leftModule)) {
             const negate = op === '!==' || op === '!='
-            code.update(
-              node.start,
-              node.end,
-              negate ? '!import.meta.main' : 'import.meta.main',
-            )
+            const mainExpr =
+              requireMainStrategy === 'import-meta-main'
+                ? 'import.meta.main'
+                : 'import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href'
+            if (requireMainStrategy === 'realpath') {
+              requireMainNeedsRealpath = true
+            }
+            code.update(node.start, node.end, negate ? `!(${mainExpr})` : mainExpr)
             return
           }
         }
@@ -549,6 +625,24 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         const hoistableTopLevel = isStatic && (topLevelExprStmt || topLevelVarDecl)
 
         if (!isStatic || !hoistableTopLevel) {
+          if (nestedRequireStrategy === 'dynamic-import') {
+            const asyncCapable = isAsyncContext(ancestors)
+
+            if (asyncCapable) {
+              const arg = node.arguments[0]
+              const argSrc = arg ? code.slice(arg.start, arg.end) : 'undefined'
+              const literalVal = (arg as any)?.value
+              const isJson =
+                arg?.type === 'Literal' &&
+                typeof literalVal === 'string' &&
+                (literalVal.split(/[?#]/)[0] ?? literalVal).endsWith('.json')
+              const importTarget = isJson ? `${argSrc} with { type: "json" }` : argSrc
+
+              code.update(node.start, node.end, `(await import(${importTarget}))`)
+              return
+            }
+          }
+
           needsCreateRequire = true
         }
       }
@@ -643,7 +737,31 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (node.type === 'MemberExpression') {
-        memberExpression(node, parent, code, opts, shadowedBindings)
+        memberExpression(node, parent, code, opts, shadowedBindings, {
+          onRequireResolve: () => {
+            if (shouldRaiseEsm) needsRequireResolveHelper = true
+          },
+          requireResolveName: '__requireResolve',
+        })
+      }
+
+      if (shouldRaiseEsm && node.type === 'ThisExpression') {
+        const bindsThis = (ancestor: any) => {
+          return (
+            ancestor.type === 'FunctionDeclaration' ||
+            ancestor.type === 'FunctionExpression' ||
+            ancestor.type === 'ClassDeclaration' ||
+            ancestor.type === 'ClassExpression'
+          )
+        }
+
+        const bindingAncestor = ancestors.find(ancestor => bindsThis(ancestor))
+        const isTopLevel = !bindingAncestor
+
+        if (isTopLevel) {
+          code.update(node.start, node.end, exportsRename)
+          return
+        }
       }
 
       if (isIdentifierName(node)) {
@@ -733,21 +851,53 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   if (shouldRaiseEsm && opts.transformSyntax) {
     const importPrelude: string[] = []
 
-    if (needsCreateRequire) {
+    if (needsCreateRequire || needsRequireResolveHelper) {
       importPrelude.push('import { createRequire } from "node:module";\n')
+    }
+
+    if (needsRequireResolveHelper) {
+      importPrelude.push('import { fileURLToPath } from "node:url";\n')
+    }
+
+    if (requireMainNeedsRealpath) {
+      importPrelude.push('import { realpathSync } from "node:fs";\n')
+      importPrelude.push('import { pathToFileURL } from "node:url";\n')
     }
 
     if (hoistedImports.length) {
       importPrelude.push(...hoistedImports)
     }
 
+    const setupPrelude: string[] = []
+
+    if (needsImportInterop) {
+      setupPrelude.push(requireInteropHelper)
+    }
+
+    if (hoistedStatements.length) {
+      setupPrelude.push(...hoistedStatements)
+    }
+
     const requireInit = needsCreateRequire
       ? 'const require = createRequire(import.meta.url);\n'
       : ''
 
+    const requireResolveInit = needsRequireResolveHelper
+      ? needsCreateRequire
+        ? `const __requireResolve = (id, parent) => {
+  const resolved = require.resolve(id, parent);
+  return resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved;
+};\n`
+        : `const __requireResolve = (id, parent) => {
+  const req = createRequire(parent ?? import.meta.url);
+  const resolved = req.resolve(id, parent);
+  return resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved;
+};\n`
+      : ''
+
     const prelude = `${importPrelude.join('')}${
       importPrelude.length ? '\n' : ''
-    }${requireInit}let ${exportsRename} = {};
+    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}let ${exportsRename} = {};
 void import.meta.filename;
 `
 

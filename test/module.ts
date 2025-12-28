@@ -44,9 +44,9 @@ describe('@knighted/module', () => {
     assert.ok(result.indexOf("other.thing.__filename = 'test'") > -1)
     assert.ok(result.indexOf('bar(__filename)') > -1)
     assert.equal([...result.matchAll(/const fn = __filename/g)].length, 2)
-    assert.ok(result.indexOf(')(import.meta.url)') > -1)
-    assert.ok(result.indexOf('import.meta.url === process.argv[1]') > -1)
-    assert.ok(result.indexOf('baz.apply(null, [import.meta.url, a])') > -1)
+    assert.ok(result.indexOf(')(import.meta.filename)') > -1)
+    assert.ok(result.indexOf('import.meta.filename === process.argv[1]') > -1)
+    assert.ok(result.indexOf('baz.apply(null, [import.meta.filename, a])') > -1)
 
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
@@ -221,8 +221,11 @@ describe('@knighted/module', () => {
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
 
-    assert.ok(result.indexOf("import * as a from './values.cjs'") > -1)
-    assert.ok(result.indexOf('const { foo, commonjs } = __cjsImport0;') > -1)
+    assert.ok(result.includes("import * as __cjsImport0 from './values.cjs'"))
+    assert.ok(result.includes('const a = __requireDefault(__cjsImport0);'))
+    assert.ok(
+      result.includes('const { foo, commonjs } = __requireDefault(__cjsImport1);'),
+    )
     assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), false)
 
     const mod = await import(pathToFileURL(outFile).href)
@@ -245,7 +248,8 @@ describe('@knighted/module', () => {
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
 
-    assert.ok(result.indexOf("import * as mod from './values.cjs'") > -1)
+    assert.ok(result.includes("import * as __cjsImport0 from './values.cjs'"))
+    assert.ok(result.includes('const mod = __requireDefault(__cjsImport0);'))
     const mod = await import(pathToFileURL(outFile).href)
     assert.equal((mod as any).default.foo, 'bar')
     assert.equal((mod as any).default.commonjs, true)
@@ -464,13 +468,50 @@ describe('@knighted/module', () => {
     const result = await transform(fixturePath, { target: 'module' })
     await writeFile(outFile, result)
 
-    assert.ok(result.includes('!import.meta.main'))
+    assert.ok(result.includes('!(import.meta.main)'))
 
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
 
     const mod = await import(pathToFileURL(outFile).href)
     assert.equal((mod as any).default.main, false)
+  })
+
+  it('supports require.main realpath strategy', async t => {
+    const fixturePath = join(fixtures, 'requireMain.cjs')
+    const outFile = join(fixtures, 'requireMain.realpath.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      requireMainStrategy: 'realpath',
+    })
+    await writeFile(outFile, result)
+
+    assert.ok(
+      result.includes(
+        'import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href',
+      ),
+    )
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+  })
+
+  it('detects circular requires when enabled', async () => {
+    const fixturePath = join(fixtures, 'cycles', 'a.cjs')
+
+    await assert.rejects(
+      () =>
+        transform(fixturePath, {
+          target: 'module',
+          detectCircularRequires: 'error',
+        }),
+      /Circular require detected/,
+    )
   })
 
   it('lifts exports inside control flow when lowering to esm', async t => {
@@ -505,7 +546,8 @@ describe('@knighted/module', () => {
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
 
-    assert.ok(result.indexOf("import * as mod from './values.cjs'") > -1)
+    assert.ok(result.includes("import * as __cjsImport0 from './values.cjs'"))
+    assert.ok(result.includes('const mod = __requireDefault(__cjsImport0);'))
     assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), false)
 
     const mod = await import(pathToFileURL(outFile).href)
@@ -534,6 +576,58 @@ describe('@knighted/module', () => {
     const mod = await import(pathToFileURL(outFile).href)
     assert.equal((mod as any).default.foo, 'bar')
     assert.equal((mod as any).default.commonjs, true)
+  })
+
+  it('uses dynamic import for async nested require when strategy enabled', async t => {
+    const fixturePath = join(fixtures, 'requireAsync.cjs')
+    const outFile = join(fixtures, 'requireAsync.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      nestedRequireStrategy: 'dynamic-import',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.equal(/\(await import\(['"]\.\/values\.cjs['"]\)\)/.test(result), true)
+    assert.equal(result.includes('createRequire'), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    const res = await exported.load()
+
+    assert.equal(res.foo, 'bar')
+    assert.equal(res.commonjs, true)
+  })
+
+  it('falls back to createRequire for sync nested require when strategy is dynamic-import', async t => {
+    const fixturePath = join(fixtures, 'requireSync.cjs')
+    const outFile = join(fixtures, 'requireSync.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      nestedRequireStrategy: 'dynamic-import',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('createRequire'))
+    assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), true)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    const res = exported.loadSync()
+
+    assert.equal(res.foo, 'bar')
+    assert.equal(res.commonjs, true)
   })
 
   it('uses createRequire for non-hoistable static require patterns when raising to esm', async () => {
@@ -869,20 +963,97 @@ describe('@knighted/module', () => {
     assert.ok(/\smodule\s/.test(result))
   })
 
-  it('transforms commonjs globals to es module globals', async () => {
+  it('transforms commonjs globals to es module globals', async t => {
+    const outFile = join(fixtures, 'file.globals.mjs')
     const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
     assert.equal(result.indexOf('__filename'), -1)
     assert.equal(result.indexOf('__dirname'), -1)
-    assert.equal(result.indexOf('require.resolve'), -1)
+    assert.ok(result.includes('__requireResolve'))
     assert.ok(result.indexOf('import.meta.filename') > -1)
     assert.ok(result.indexOf('import.meta.dirname') > -1)
-    assert.ok(result.indexOf('import.meta.resolve') > -1)
+    assert.equal(/import\.meta\.resolve/.test(result), false)
     // Check `module`, `exports` and `require.cache`
     assert.equal(!/\smodule\s/.test(result), true)
     assert.equal(!/\sexports\s/.test(result), true)
     assert.equal(result.indexOf('require.cache'), -1)
     assert.ok(/import\.meta/.test(result))
     assert.ok(result.indexOf('{}') > -1)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+  })
+
+  it('rewrites require.resolve to scoped helper when raising to esm', async t => {
+    const result = await transform(join(fixtures, 'file.cjs'), { target: 'module' })
+    const outFile = join(fixtures, 'file.resolve.mjs')
+
+    await rm(outFile, { force: true })
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+
+    const requireCjs = createRequire(outFile)
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+
+    assert.ok(result.includes('createRequire'))
+    assert.ok(result.includes('__requireResolve'))
+    assert.equal(/require\.resolve\(\.\/values\.cjs\)/.test(result), false)
+    assert.equal(/import\.meta\.resolve/.test(result), false)
+    assert.equal((exported as any).resolved, requireCjs.resolve('./values.cjs'))
+  })
+
+  it('raises json require to import with attributes', async t => {
+    const fixturePath = join(fixtures, 'requireJson.cjs')
+    const outFile = join(fixtures, 'requireJson.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('with { type: "json" }'))
+    assert.equal(/require\(['"]\.\/data.json['"]\)/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.value, 'alpha')
+    assert.deepEqual(exported.pick, { value: 'alpha', nested: { n: 1 } })
+    assert.equal(exported.side, 'ok')
+  })
+
+  it('rewrites top-level this to exports when raising to esm', async t => {
+    const fixturePath = join(fixtures, 'topLevelThis.cjs')
+    const outFile = join(fixtures, 'topLevelThis.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.equal(/\bthis\b/.test(result), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported =
+      (mod as any).default ?? (mod as any).self ?? (mod as any).default ?? (mod as any)
+
+    assert.equal(exported.alpha, 1)
+    assert.equal(exported.beta, 2)
+    assert.equal(exported.self, exported)
+    assert.equal(exported.check(), true)
+    assert.equal((mod as any).self, exported)
   })
 
   it('updates specifiers when option enabled', async t => {
@@ -910,9 +1081,73 @@ describe('@knighted/module', () => {
     assert.equal((result.match(/require\.resolve\('\.\/file\.js'\)/g) ?? []).length, 2)
     assert.equal((cjsResult.match(/\.\/file\.mjs/g) ?? []).length, 3)
     assert.equal(
-      (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
+      (cjsResult.match(/__requireResolve\('\.\/file\.mjs'\)/g) ?? []).length,
       1,
     )
+    assert.equal(
+      (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
+      0,
+    )
+  })
+
+  it('appends .js to relative specifiers when targeting module', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'noext.cjs')
+    const result = await transform(fixturePath, { target: 'module' })
+    const outFile = join(specifierRoot, 'noext.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.equal((result.match(/\.\/file\.js/g) ?? []).length, 3)
+    assert.equal(result.includes("'./file'"), false)
+  })
+
+  it('appends index.js for directory specifiers when targeting module', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'dirImport.cjs')
+    const result = await transform(fixturePath, { target: 'module' })
+    const outFile = join(specifierRoot, 'dirImport.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const mod = await import(pathToFileURL(outFile).href)
+
+    assert.ok(result.includes('./dir/index.js'))
+    assert.equal((mod as any).value, 42)
+  })
+
+  it('normalizes builtin specifiers to the node: protocol', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'builtin.cjs')
+    const outFile = join(specifierRoot, 'builtin.out.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(/node:fs\b/.test(result))
+    assert.ok(/node:fs\/promises\b/.test(result))
+    assert.equal((result.match(/from ['"]fs['"]/g) ?? []).length, 0)
+    assert.equal((result.match(/require\(['"]fs['"]\)/g) ?? []).length, 0)
+    assert.equal((result.match(/node:node:/g) ?? []).length, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.summary.fs, 'function')
+    assert.equal(exported.summary.fsp, 'function')
+    assert.equal(exported.summary.assert, 'function')
   })
 
   it('exports anonymous default function when lowering to commonjs', async () => {

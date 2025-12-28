@@ -32,6 +32,35 @@ const getScopeContext = (program: Node): ScopeContext => {
   return context
 }
 
+const isInBindingPattern = (pattern: Node, target: Node): boolean => {
+  if (pattern === target) return true
+
+  switch (pattern.type) {
+    case 'Identifier':
+      return pattern === target
+    case 'AssignmentPattern':
+      return isInBindingPattern(pattern.left, target)
+    case 'RestElement':
+      return isInBindingPattern(pattern.argument, target)
+    case 'ObjectPattern':
+      return (pattern.properties ?? []).some(prop => {
+        if (prop.type === 'Property') {
+          return isInBindingPattern(prop.value, target)
+        }
+        if (prop.type === 'RestElement') {
+          return isInBindingPattern(prop.argument, target)
+        }
+        return false
+      })
+    case 'ArrayPattern':
+      return (pattern.elements ?? []).some(
+        elem => elem && isInBindingPattern(elem, target),
+      )
+    default:
+      return false
+  }
+}
+
 /**
  * All methods receive the full set of ancestors, which
  * specifically includes the node itself as the last element.
@@ -53,6 +82,7 @@ const identifier = {
   isModuleScope(ancestors: Node[], includeImports = false) {
     const node = ancestors[ancestors.length - 1]
     const parent = ancestors[ancestors.length - 2]
+    const grandParent = ancestors[ancestors.length - 3]
     const program = ancestors[0]
 
     if (
@@ -74,7 +104,9 @@ const identifier = {
     }
 
     if (parent.type === 'Property' && parent.key === node && !parent.computed) {
-      return false
+      if (grandParent?.type !== 'ObjectPattern') {
+        return false
+      }
     }
 
     if (
@@ -109,14 +141,20 @@ const identifier = {
 
   isDeclaration(ancestors: Node[]) {
     const node = ancestors[ancestors.length - 1]
-    const parent = ancestors[ancestors.length - 2]
+    // Walk outwards to find a declarator that binds the node
+    for (let i = ancestors.length - 2; i >= 0; i--) {
+      const parent = ancestors[i]
 
-    return (
-      (parent.type === 'VariableDeclarator' ||
-        parent.type === 'FunctionDeclaration' ||
-        parent.type === 'ClassDeclaration') &&
-      parent.id === node
-    )
+      if (parent.type === 'VariableDeclarator') {
+        return parent.id === node || isInBindingPattern(parent.id, node)
+      }
+
+      if (parent.type === 'FunctionDeclaration' || parent.type === 'ClassDeclaration') {
+        return parent.id === node
+      }
+    }
+
+    return false
   },
 
   isClassOrFuncDeclarationId(ancestors: Node[]) {
@@ -132,8 +170,6 @@ const identifier = {
 
   isVarDeclarationInGlobalScope(ancestors: Node[]) {
     const node = ancestors[ancestors.length - 1]
-    const parent = ancestors[ancestors.length - 2]
-    const grandParent = ancestors[ancestors.length - 3]
     const varBoundScopes = [
       'ClassDeclaration',
       'ClassExpression',
@@ -142,14 +178,25 @@ const identifier = {
       'ArrowFunctionExpression',
     ]
 
+    const declaratorIndex = ancestors.findIndex(ancestor => {
+      return (
+        ancestor.type === 'VariableDeclarator' &&
+        (ancestor === node || isInBindingPattern((ancestor as any).id, node))
+      )
+    })
+
+    if (declaratorIndex === -1) return false
+
+    const declarator = ancestors[declaratorIndex] as any
+    const declaration = ancestors[declaratorIndex - 1]
+
     return (
-      parent.type === 'VariableDeclarator' &&
-      parent.id === node &&
-      grandParent.type === 'VariableDeclaration' &&
-      grandParent.kind === 'var' &&
+      declaration?.type === 'VariableDeclaration' &&
+      declaration.kind === 'var' &&
       ancestors.every(ancestor => {
         return !varBoundScopes.includes(ancestor.type)
-      })
+      }) &&
+      (declarator.id === node || isInBindingPattern(declarator.id, node))
     )
   },
 

@@ -1,5 +1,8 @@
 __dirname
 
+const thing = {}
+const other = { thing: {} }
+
 const dirname = __dirname
 const a = [__dirname, 'foo']
 const obj = new String(__dirname + 'foo')
