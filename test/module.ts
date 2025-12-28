@@ -1125,6 +1125,31 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).value, 42)
   })
 
+  it('normalizes builtin specifiers to the node: protocol', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'builtin.cjs')
+    const outFile = join(specifierRoot, 'builtin.out.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.ok(/node:fs\b/.test(result))
+    assert.ok(/node:fs\/promises\b/.test(result))
+    assert.equal((result.match(/from ['"]fs['"]/g) ?? []).length, 0)
+    assert.equal((result.match(/require\(['"]fs['"]\)/g) ?? []).length, 0)
+    assert.equal((result.match(/node:node:/g) ?? []).length, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.summary.fs, 'function')
+    assert.equal(exported.summary.fsp, 'function')
+    assert.equal(exported.summary.assert, 'function')
+  })
+
   it('exports anonymous default function when lowering to commonjs', async () => {
     const fixturePath = join(fixtures, 'exportDefaultAnon.mjs')
     const result = await transform(fixturePath, { target: 'commonjs' })

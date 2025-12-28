@@ -9,6 +9,7 @@ import { parse } from '#parse'
 import { format } from '#format'
 import { getLangFromExt } from '#utils/lang.js'
 import type { ModuleOptions } from './types.js'
+import { builtinModules } from 'node:module'
 import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
 import { readFile as fsReadFile, stat } from 'node:fs/promises'
 import { parse as parseModule } from '#parse'
@@ -18,6 +19,16 @@ type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>
 
 const collapseSpecifier = (value: string) => value.replace(/['"`+)\s]|new String\(/g, '')
+
+const builtinSpecifiers = new Set<string>(
+  builtinModules
+    .map(mod => (mod.startsWith('node:') ? mod.slice(5) : mod))
+    .flatMap(mod => {
+      const parts = mod.split('/')
+      const base = parts[0]
+      return parts.length > 1 ? [mod, base] : [mod]
+    }),
+)
 
 const appendExtensionIfNeeded = (
   spec: Spec,
@@ -68,6 +79,28 @@ const rewriteSpecifierValue = (
   if (relative.test(collapsed)) {
     return value.replace(/(.+)\.(?:m|c)?(?:j|t)s([)'"]*)?$/, `$1${rewriteSpecifier}$2`)
   }
+}
+
+const normalizeBuiltinSpecifier = (value: string) => {
+  const collapsed = collapseSpecifier(value)
+  if (!collapsed) return
+
+  const specPart = collapsed.split(/[?#]/)[0] ?? ''
+
+  // Ignore relative and absolute paths.
+  if (/^(?:\.\.?\/|\/)/.test(specPart)) return
+
+  // Skip other protocols (e.g., http:, data:) but allow node:.
+  if (/^[a-zA-Z][a-zA-Z+.-]*:/.test(specPart) && !specPart.startsWith('node:')) return
+
+  const bare = specPart.startsWith('node:') ? specPart.slice(5) : specPart
+  const base = bare.split('/')[0] ?? ''
+
+  if (!builtinSpecifiers.has(bare) && !builtinSpecifiers.has(base)) return
+  if (specPart.startsWith('node:')) return
+
+  const quote = /^['"`]/.exec(value)?.[0] ?? ''
+  return quote ? `${quote}node:${value.slice(quote.length)}` : `node:${value}`
 }
 
 const fileExists = async (candidate: string) => {
@@ -208,11 +241,15 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
 
   if (opts.rewriteSpecifier || appendMode !== 'off' || dirIndex) {
     const code = await specifier.updateSrc(source, getLangFromExt(filename), spec => {
-      const rewritten = rewriteSpecifierValue(spec.value, opts.rewriteSpecifier)
-      const baseValue = rewritten ?? spec.value
+      const normalized = normalizeBuiltinSpecifier(spec.value)
+      const rewritten = rewriteSpecifierValue(
+        normalized ?? spec.value,
+        opts.rewriteSpecifier,
+      )
+      const baseValue = rewritten ?? normalized ?? spec.value
       const appended = appendExtensionIfNeeded(spec, appendMode, dirIndex, baseValue)
 
-      return appended ?? rewritten ?? undefined
+      return appended ?? rewritten ?? normalized ?? undefined
     })
 
     source = code
