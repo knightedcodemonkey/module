@@ -188,6 +188,7 @@ const defaultOptions = {
   requireMainStrategy: 'import-meta-main',
   detectCircularRequires: 'off',
   requireSource: 'builtin',
+  nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
   topLevelAwait: 'error',
   out: undefined,

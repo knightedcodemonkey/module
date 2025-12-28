@@ -578,6 +578,58 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).default.commonjs, true)
   })
 
+  it('uses dynamic import for async nested require when strategy enabled', async t => {
+    const fixturePath = join(fixtures, 'requireAsync.cjs')
+    const outFile = join(fixtures, 'requireAsync.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      nestedRequireStrategy: 'dynamic-import',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.equal(/\(await import\(['"]\.\/values\.cjs['"]\)\)/.test(result), true)
+    assert.equal(result.includes('createRequire'), false)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    const res = await exported.load()
+
+    assert.equal(res.foo, 'bar')
+    assert.equal(res.commonjs, true)
+  })
+
+  it('falls back to createRequire for sync nested require when strategy is dynamic-import', async t => {
+    const fixturePath = join(fixtures, 'requireSync.cjs')
+    const outFile = join(fixtures, 'requireSync.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      nestedRequireStrategy: 'dynamic-import',
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('createRequire'))
+    assert.equal(/require\(['"]\.\/values\.cjs['"]\)/.test(result), true)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    const exported = (mod as any).default ?? (mod as any)
+    const res = exported.loadSync()
+
+    assert.equal(res.foo, 'bar')
+    assert.equal(res.commonjs, true)
+  })
+
   it('uses createRequire for non-hoistable static require patterns when raising to esm', async () => {
     const fixturePath = join(fixtures, 'requireArray.cjs')
 

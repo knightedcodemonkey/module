@@ -230,6 +230,26 @@ const hasTopLevelAwait = (program: any) => {
   return found
 }
 
+const isAsyncContext = (ancestors: any[]) => {
+  for (let i = ancestors.length - 1; i >= 0; i -= 1) {
+    const node = ancestors[i]
+    if (
+      node.type === 'FunctionDeclaration' ||
+      node.type === 'FunctionExpression' ||
+      node.type === 'ArrowFunctionExpression'
+    ) {
+      return !!node.async
+    }
+
+    if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      return false
+    }
+  }
+
+  // Program scope (top-level) supports await in ESM.
+  return true
+}
+
 const lowerEsmToCjs = (
   program: any,
   code: MagicString,
@@ -500,6 +520,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   const requireMainStrategy = opts.requireMainStrategy ?? 'import-meta-main'
   let requireMainNeedsRealpath = false
   let needsRequireResolveHelper = false
+  const nestedRequireStrategy = opts.nestedRequireStrategy ?? 'create-require'
 
   const shouldLowerCjs = opts.target === 'commonjs' && opts.transformSyntax
   const shouldRaiseEsm = opts.target === 'module' && opts.transformSyntax
@@ -604,6 +625,24 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         const hoistableTopLevel = isStatic && (topLevelExprStmt || topLevelVarDecl)
 
         if (!isStatic || !hoistableTopLevel) {
+          if (nestedRequireStrategy === 'dynamic-import') {
+            const asyncCapable = isAsyncContext(ancestors)
+
+            if (asyncCapable) {
+              const arg = node.arguments[0]
+              const argSrc = arg ? code.slice(arg.start, arg.end) : 'undefined'
+              const literalVal = (arg as any)?.value
+              const isJson =
+                arg?.type === 'Literal' &&
+                typeof literalVal === 'string' &&
+                (literalVal.split(/[?#]/)[0] ?? literalVal).endsWith('.json')
+              const importTarget = isJson ? `${argSrc} with { type: "json" }` : argSrc
+
+              code.update(node.start, node.end, `(await import(${importTarget}))`)
+              return
+            }
+          }
+
           needsCreateRequire = true
         }
       }
