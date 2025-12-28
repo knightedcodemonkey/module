@@ -94,6 +94,10 @@ export const memberExpression = (
           src.update(start, end, 'import.meta.main')
           break
         case 'resolve':
+          if (options.transformSyntax !== true) {
+            src.update(start, end, 'import.meta.resolve')
+            return
+          }
           extras?.onRequireResolve?.()
           src.update(start, end, extras?.requireResolveName ?? 'import.meta.resolve')
           break
