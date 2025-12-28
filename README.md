@@ -127,9 +127,7 @@ type ModuleOptions = {
 Behavior notes (defaults in parentheses)
 
 - `target` (`commonjs`): output module system.
-- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped.
-  - When lowering CJS to ESM in full mode, `require.resolve` keeps CJS semantics via a generated helper (e.g., `__requireResolve`). In `'globals-only'` mode no helpers are injected; `require.resolve` is rewritten to `import.meta.resolve`, which may change resolution and return URLs instead of file paths. In `'globals-only'`, idiomaticExports is skipped.
-  - When lowering CJS to ESM in full mode, `require.resolve` keeps CJS semantics via a generated helper (e.g., `__requireResolve`). In `'globals-only'` mode no helpers are injected; `require.resolve` is rewritten to `import.meta.resolve`, which may change resolution and return URLs instead of file paths.
+- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped. See [globals-only](#globals-only-scope).
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
 - `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
