@@ -11,14 +11,16 @@ Node.js utility for transforming a JavaScript or TypeScript file from an ES modu
 
 Highlights
 
+- ESM ➡️ CJS and CJS ➡️ ESM with one function call.
 - Defaults to safe CommonJS output: strict live bindings, import.meta shims, and specifier preservation.
-- Opt into stricter/looser behaviors: live binding enforcement, import.meta.main gating, and top-level await strategies.
-- Can optionally rewrite relative specifiers and write transformed output to disk.
+- Configurable lowering modes: full syntax transforms or globals-only.
+- Specifier tools: add extensions, add directory indexes, or map with a custom callback.
+- Output control: write to disk (`out`/`inPlace`) or return the transformed string.
 
 > [!IMPORTANT]  
 > All parsing logic is applied under the assumption the code is in [strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode) which [modules run under by default](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#other_differences_between_modules_and_classic_scripts).
 
-By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs). Options let you control syntax rewriting, specifier updates, and output.
+By default `@knighted/module` transforms the one-to-one [differences between ES modules and CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs). Options let you control syntax rewriting (full vs globals-only), specifier updates, and output.
 
 ## Requirements
 
@@ -30,9 +32,9 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 npm install @knighted/module
 ```
 
-## Example
+## Quick examples
 
-Given an ES module:
+ESM ➡️ CJS:
 
 **file.js**
 
@@ -93,6 +95,17 @@ use@computer: $ node file.cjs
 invoked directly by node
 ```
 
+CJS ➡️ ESM:
+
+```js
+import { transform } from '@knighted/module'
+
+await transform('./file.cjs', {
+  target: 'module',
+  out: './file.mjs',
+})
+```
+
 ## Options
 
 ```ts
@@ -124,20 +137,21 @@ type ModuleOptions = {
 }
 ```
 
-Behavior notes (defaults in parentheses)
+### Behavior notes (defaults in parentheses)
 
 - `target` (`commonjs`): output module system.
 - `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped. See [globals-only](#globals-only-scope).
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
 - `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
+- `appenders` precedence: `rewriteSpecifier` runs first; if it returns a string, that result is used. If it returns `undefined` or `null`, `appendJsExtension` and `appendDirectoryIndex` still run. Bare specifiers are never modified by appenders.
 - `dirFilename` (`inject`): inject `__dirname`/`__filename`, preserve existing, or throw.
 - `importMeta` (`shim`): rewrite `import.meta.*` to CommonJS equivalents.
 - `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
 - `requireMainStrategy` (`import-meta-main`): use `import.meta.main` or the realpath-based `pathToFileURL(realpathSync(process.argv[1])).href` check.
 - `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
-- `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback.
+- `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback. Precedence: the callback (if provided) runs first; if it returns a string, that wins. If it returns `undefined` or `null`, the appenders still apply.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.

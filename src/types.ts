@@ -38,7 +38,8 @@ export type ModuleOptions = {
   appendJsExtension?: 'off' | 'relative-only' | 'all'
   /** Add directory index (e.g. /index.js) or disable. */
   appendDirectoryIndex?: string | false
-  /** Control __dirname and __filename handling. */
+  /** Precedence: rewriteSpecifier runs first; if it returns a string that wins. If it returns undefined or null, appenders apply. Bare specifiers are never modified by appenders. */
+  /** Control __dirname/__filename handling (inject shims, preserve existing, or throw on use). */
   dirFilename?: 'inject' | 'preserve' | 'error'
   /** How to treat import.meta. */
   importMeta?: 'preserve' | 'shim' | 'error'
