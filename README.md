@@ -128,6 +128,7 @@ Behavior notes (defaults in parentheses)
 
 - `target` (`commonjs`): output module system.
 - `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped.
+  - When lowering CJS to ESM in full mode, `require.resolve` keeps CJS semantics via a generated helper (e.g., `__requireResolve`). In `'globals-only'` mode no helpers are injected; `require.resolve` is rewritten to `import.meta.resolve`, which may change resolution and return URLs instead of file paths. In `'globals-only'`, idiomaticExports is skipped.
   - When lowering CJS to ESM in full mode, `require.resolve` keeps CJS semantics via a generated helper (e.g., `__requireResolve`). In `'globals-only'` mode no helpers are injected; `require.resolve` is rewritten to `import.meta.resolve`, which may change resolution and return URLs instead of file paths.
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
@@ -151,6 +152,13 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 
 > [!NOTE]
 > Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
+
+### Globals-only scope
+
+- Rewrites module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) for the target side.
+- Optional specifier rewrites still run (`rewriteSpecifier`, `appendJsExtension`, `appendDirectoryIndex`).
+- Leaves imports/exports and interop untouched (no export bag, no idiomaticExports, no live-binding synthesis, no helpers like `__requireResolve`).
+- CJS→ESM: `require.resolve` maps to `import.meta.resolve` (URL return, ESM resolver) and may differ from CJS resolution. ESM→CJS: `import.meta` maps to CJS globals; no import lowering.
 
 ### Diagnostics callback example
 
