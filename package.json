@@ -1,9 +1,12 @@
 {
   "name": "@knighted/module",
-  "version": "1.2.1",
+  "version": "1.3.0-rc.0",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
+  "bin": {
+    "dub": "dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": {
@@ -28,7 +31,10 @@
     "prettier:check": "prettier -c .",
     "lint": "oxlint --config oxlint.json .",
     "prepare": "husky",
-    "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
+    "test:base": "tsx --test --test-reporter=spec",
+    "test:cli": "npm run test:base -- test/cli.ts",
+    "test:module": "npm run test:base -- test/module.ts",
+    "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov npm run test:base -- test/*.ts",
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
     "build": "npm run build:types && npm run build:dual",
@@ -59,7 +65,7 @@
   },
   "devDependencies": {
     "@knighted/dump": "^1.0.3",
-    "@types/node": "^22.13.17",
+    "@types/node": "^22.19.3",
     "babel-dual-package": "^1.2.3",
     "c8": "^10.1.3",
     "husky": "^9.1.7",
@@ -71,6 +77,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "glob": "^13.0.0",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.105.0",
     "periscopic": "^4.0.2"

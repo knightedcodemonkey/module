@@ -31,7 +31,7 @@
       }
     },
     {
-      "files": ["test/**"],
+      "files": ["test/**", "!test/cli.ts"],
       "rules": {
         "@typescript-eslint/no-explicit-any": "off"
       }

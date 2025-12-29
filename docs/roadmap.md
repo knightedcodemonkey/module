@@ -9,15 +9,14 @@ Shipped: `idiomaticExports: 'safe'` is now the default for CJS → ESM, with fal
 Next:
 
 - Explore a true `'aggressive'` mode (mixed exports/module.exports, limited reassignments, identifier-safe computed keys) with guarded semantics and explicit diagnostics.
+- In `'auto'`, allow idiomatic `module.exports = { foo, bar }` when the object literal is simple: single top-level assignment, no spreads/getters/computed/duplicate keys, only identifier keys, RHS values limited to safe literals/identifiers/function|class expressions, no `require()` inside RHS, and no `__proto__`/`prototype` keys. Add a shorthand-object fixture test and keep falling back to the helper for anything more complex.
 - Consider a constrained ESM → CJS “pretty” path where live-binding and TLA semantics permit it.
 
 ## CLI
 
-- Deliver a `knighted-module` CLI that wraps the core transform with parity to API options (targets, rewriteSpecifier, appendJsExtension/appendDirectoryIndex, detectCircularRequires, topLevelAwait, cjsDefault, diagnostics hooks, out/in-place).
-- Input handling: accept file/glob lists plus stdin/stdout piping; respect `package.json` `type` and `.cjs/.mjs` extensions; allow per-invocation overrides via flags and a config file.
-- Output handling: in-place rewrite or out-dir mirroring with extension rewriting; emit diagnostics to stderr and machine-readable JSON when requested; non-zero exit on diagnostics of severity error.
-- Performance ergonomics: batch parse/format where possible, optional concurrency flag, and a `--watch` mode that rebuilds on change with minimal restarts.
-- DX: `--dry-run` to preview planned rewrites, `--list` to show which files would change, `--summary` to print counts of transformed specifiers/globals, and `--help`/`--version` aligned with package metadata.
+- Shipped parity CLI wrapping the core transform (targets, rewriteSpecifier, appendJsExtension/appendDirectoryIndex, detectCircularRequires, topLevelAwait, cjsDefault, diagnostics hooks, out/in-place) with stdin/stdout support, JSON/summary, and list/dry-run paths.
+- Next: optional concurrency flag, `--watch` mode with minimal restarts, and a tiny stream type surface to keep test stubs and embedding clean.
+- DX polish: keep help/examples in sync with tests; retain single-fixture CLI coverage unless new CLI-specific behaviors emerge (e.g., multi-ext glob ordering, large-input streaming), since transform semantics are already exercised in module fixtures.
 
 ## Tooling & Diagnostics
 
