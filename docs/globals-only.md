@@ -16,7 +16,7 @@
 | CJS ➜ ESM | `__dirname` | `import.meta.dirname` | lexical swap |
 | CJS ➜ ESM | `__filename` | `import.meta.filename` | lexical swap |
 | CJS ➜ ESM | `require.main` | `import.meta.main` | skipped inside equality checks |
-| CJS ➜ ESM | `require.resolve(...)` | `import.meta.resolve(...)` | no helper emitted |
+| CJS ➜ ESM | `require.resolve(...)` | `import.meta.resolve(...)` | no helper emitted* |
 | CJS ➜ ESM | `module.require(...)` | `require(...)` | collapses to ambient require |
 | CJS ➜ ESM | `require.cache` | `{}` | best-effort stub + warning |
 | CJS ➜ ESM | `require.extensions` | (unchanged) | warning emitted |
@@ -29,6 +29,8 @@
 | ESM ➜ CJS | `import.meta.main` | `process.argv[1] === __filename` | inline check |
 | ESM ➜ CJS | other `import.meta.*` | `module.*` | no extra objects created |
 <!-- prettier-ignore-end -->
+
+\* In globals-only, we do not inject the CJS-style `require.resolve` helper. The rewrite relies on the host's native `import.meta.resolve`, whose semantics differ (URL-based, parent handling). Use full transforms if you need the helper that preserves CJS resolution behavior.
 
 ## When to use it
 
