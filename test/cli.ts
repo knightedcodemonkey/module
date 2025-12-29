@@ -18,7 +18,7 @@ const cliEntry = resolve(projectRoot, 'src/cli.ts')
 const fixture = resolve(projectRoot, 'test/fixtures/cli/input.cjs')
 const fixtureRel = relative(projectRoot, fixture)
 const pkgPath = resolve(projectRoot, 'package.json')
-const tscBin = resolve(projectRoot, 'node_modules', '.bin', 'tsc')
+const tscBin = require.resolve('typescript/bin/tsc')
 
 const runCli = (args: string[], input?: string, opts?: { cwd?: string }) =>
   spawnSync(process.execPath, ['--import', tsxImportUrl, cliEntry, ...args], {
@@ -231,7 +231,7 @@ test('globals-only pre-tsc flow matches README example', async () => {
   )
 
   try {
-    const before = spawnSync(tscBin, ['-p', temp], { encoding: 'utf8' })
+    const before = spawnSync(process.execPath, [tscBin, '-p', temp], { encoding: 'utf8' })
     assert.notEqual(before.status, 0)
 
     const result = runCli(
@@ -253,7 +253,7 @@ test('globals-only pre-tsc flow matches README example', async () => {
     const transformed = await readFile(file, 'utf8')
     assert.ok(!transformed.includes('import.meta'))
 
-    const after = spawnSync(tscBin, ['-p', temp], { encoding: 'utf8' })
+    const after = spawnSync(process.execPath, [tscBin, '-p', temp], { encoding: 'utf8' })
     assert.equal(after.status, 0, after.stderr || after.stdout)
   } finally {
     await rm(temp, { recursive: true, force: true })
