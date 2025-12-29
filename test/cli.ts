@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { resolve, join, relative } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { mkdtemp, copyFile, readFile, rm, stat, mkdir, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -11,6 +12,7 @@ import { runCli as runCliEntry } from '../src/cli.js'
 
 const require = createRequire(import.meta.url)
 const tsxImport = require.resolve('tsx/esm')
+const tsxImportUrl = pathToFileURL(tsxImport).href
 const projectRoot = resolve(import.meta.dirname, '..')
 const cliEntry = resolve(projectRoot, 'src/cli.ts')
 const fixture = resolve(projectRoot, 'test/fixtures/cli/input.cjs')
@@ -19,7 +21,7 @@ const pkgPath = resolve(projectRoot, 'package.json')
 const tscBin = resolve(projectRoot, 'node_modules', '.bin', 'tsc')
 
 const runCli = (args: string[], input?: string, opts?: { cwd?: string }) =>
-  spawnSync(process.execPath, ['--import', tsxImport, cliEntry, ...args], {
+  spawnSync(process.execPath, ['--import', tsxImportUrl, cliEntry, ...args], {
     cwd: opts?.cwd ?? projectRoot,
     input,
     encoding: 'utf8',
