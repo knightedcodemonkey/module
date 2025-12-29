@@ -4,12 +4,11 @@ Status: draft
 
 ## Idiomatic Exports
 
-Shipped: `idiomaticExports: 'safe'` is now the default for CJS → ESM, with fallback to the helper bag plus diagnostics when unsafe.
+Shipped: `idiomaticExports: 'safe'` is now the default for CJS → ESM, with fallback to the helper bag plus diagnostics when unsafe. Auto lifts simple `module.exports = { foo, bar }` object literals to idiomatic exports when safe.
 
 Next:
 
 - Explore a true `'aggressive'` mode (mixed exports/module.exports, limited reassignments, identifier-safe computed keys) with guarded semantics and explicit diagnostics.
-- In `'auto'`, allow idiomatic `module.exports = { foo, bar }` when the object literal is simple: single top-level assignment, no spreads/getters/computed/duplicate keys, only identifier keys, RHS values limited to safe literals/identifiers/function|class expressions, no `require()` inside RHS, and no `__proto__`/`prototype` keys. Add a shorthand-object fixture test and keep falling back to the helper for anything more complex.
 - Consider a constrained ESM → CJS “pretty” path where live-binding and TLA semantics permit it.
 
 ## CLI

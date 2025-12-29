@@ -23,7 +23,7 @@ dub [options] <files...>
 
 Examples:
 
-- Transform CJS to ESM into an output directory:
+- Transform CJS to ESM into an output directory (mirrors input paths inside the dir):
 
   ```bash
   dub -t module src/**/*.cjs --out-dir dist
@@ -45,6 +45,12 @@ Examples:
 
   ```bash
   cat input.cjs | dub -t module --stdin-filename input.cjs > output.mjs
+  ```
+
+- Single-file rename via stdout redirect (CLI has no "out file" flag; `--out-dir` always mirrors inputs):
+
+  ```bash
+  dub -t module src/some.cjs > src/some.mjs
   ```
 
 ## Options
@@ -83,5 +89,5 @@ Short and long forms are supported.
 Notes:
 
 - When reading from stdin, output is sent to stdout; `--out-dir` or `--in-place` are not allowed in that mode.
-- Specify either `--out-dir` or `--in-place` for file inputs; stdout is used only when a single file is given and neither flag is set.
+- Specify either `--out-dir` or `--in-place` for file inputs; stdout is used only when a single file is given and neither flag is set. `--out-dir` always mirrors the input path under that directory (no single-file rename flag). Use stdout redirection if you need to rename one file.
 - Diagnostics are printed to stderr; use `--json` for machine-readable output.

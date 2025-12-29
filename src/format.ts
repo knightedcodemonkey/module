@@ -740,7 +740,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         if (entry.reassignments.length) return { ok: false, reason: 'reassignment' }
         if (entry.hasNonTopLevelWrite) return { ok: false, reason: 'non-top-level' }
         if (entry.writes.length !== 1) return { ok: false, reason: 'multiple-writes' }
-        if (!isValidExportName(entry.key))
+        if (entry.key !== 'default' && !isValidExportName(entry.key))
           return { ok: false, reason: 'non-identifier-key' }
       }
 
@@ -757,6 +757,52 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         return raw
           .replace(/\b__dirname\b/g, 'import.meta.dirname')
           .replace(/\b__filename\b/g, 'import.meta.filename')
+      }
+
+      const tryObjectLiteralExport = (
+        rhs: Node,
+        baseIsModuleExports: boolean,
+        propName: string,
+      ) => {
+        if (!baseIsModuleExports || propName !== 'exports') return null
+        if (rhs.type !== 'ObjectExpression') return null
+
+        const exportsOut: string[] = []
+        const seenKeys = new Set<string>()
+
+        for (const prop of rhs.properties) {
+          if (prop.type !== 'Property') return null
+          if (prop.kind !== 'init') return null
+          if (prop.computed || prop.method) return null
+
+          if (prop.key.type !== 'Identifier') return null
+          const key = prop.key.name
+
+          if (key === '__proto__' || key === 'prototype') return null
+          if (!isValidExportName(key)) return null
+          if (seenKeys.has(key)) return null
+
+          const value =
+            prop.value.type === 'Identifier' && prop.shorthand ? prop.key : prop.value
+
+          if (!isAllowedRhs(value)) return null
+          if (expressionHasRequireCall(value, requireShadowed)) return null
+
+          const rhsSrc = rhsSourceFor(value)
+          if (value.type === 'Identifier' && value.name === key) {
+            exportsOut.push(`export { ${key} };`)
+          } else if (value.type === 'Identifier') {
+            exportsOut.push(`export { ${rhsSrc} as ${key} };`)
+          } else {
+            exportsOut.push(`export const ${key} = ${rhsSrc};`)
+          }
+
+          seenKeys.add(key)
+        }
+
+        exportsOut.push(`export default ${rhsSourceFor(rhs)};`)
+
+        return { exportsOut, seenKeys }
       }
 
       for (const entry of entries) {
@@ -778,28 +824,45 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         const propName = left.property.name
         const baseIsExports = base.type === 'Identifier' && base.name === 'exports'
         const baseIsModuleExports =
-          base.type === 'MemberExpression' &&
-          base.object.type === 'Identifier' &&
-          base.object.name === 'module' &&
-          base.property.type === 'Identifier' &&
-          base.property.name === 'exports'
+          (base.type === 'Identifier' &&
+            base.name === 'module' &&
+            propName === 'exports') ||
+          (base.type === 'MemberExpression' &&
+            base.object.type === 'Identifier' &&
+            base.object.name === 'module' &&
+            base.property.type === 'Identifier' &&
+            base.property.name === 'exports')
 
         if (!baseIsExports && !baseIsModuleExports) {
           return { ok: false, reason: 'unsupported-base' }
         }
 
         const rhs = write.right
-        if (!isAllowedRhs(rhs)) return { ok: false, reason: 'unsupported-rhs' }
-        if (expressionHasRequireCall(rhs, requireShadowed)) {
-          return { ok: false, reason: 'rhs-require' }
+        const objectLiteralPlan = tryObjectLiteralExport(
+          rhs,
+          baseIsModuleExports,
+          propName,
+        )
+        if (!objectLiteralPlan) {
+          if (!isAllowedRhs(rhs)) return { ok: false, reason: 'unsupported-rhs' }
+          if (expressionHasRequireCall(rhs, requireShadowed)) {
+            return { ok: false, reason: 'rhs-require' }
+          }
         }
 
         const rhsSrc = rhsSourceFor(rhs)
         if (propName === 'exports' && baseIsModuleExports) {
-          // module.exports = ... handles default
-          if (seen.has('default')) return { ok: false, reason: 'duplicate-default' }
-          seen.add('default')
-          exportsOut.push(`export default ${rhsSrc};`)
+          if (objectLiteralPlan) {
+            for (const line of objectLiteralPlan.exportsOut) {
+              exportsOut.push(line)
+            }
+            objectLiteralPlan.seenKeys.forEach(k => seen.add(k))
+          } else {
+            // module.exports = ... handles default
+            if (seen.has('default')) return { ok: false, reason: 'duplicate-default' }
+            seen.add('default')
+            exportsOut.push(`export default ${rhsSrc};`)
+          }
         } else {
           if (seen.has(propName)) return { ok: false, reason: 'duplicate-key' }
           seen.add(propName)
@@ -1162,11 +1225,14 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         code.overwrite(rep.start, rep.end, idiomaticPlan!.exports[idx])
       })
     } else {
-      for (const rep of idiomaticPlan.replacements) {
-        code.overwrite(rep.start, rep.end, ';')
+      const [first, ...rest] = idiomaticPlan.replacements
+      if (first) {
+        code.overwrite(first.start, first.end, idiomaticPlan.exports.join('\n'))
       }
-      if (idiomaticPlan.exports.length) {
-        code.append(`\n${idiomaticPlan.exports.join('\n')}\n`)
+      for (const rep of rest) {
+        const original = code.slice(rep.start, rep.end)
+        const hasSemicolon = original.trimEnd().endsWith(';')
+        code.overwrite(rep.start, rep.end, hasSemicolon ? ';' : '')
       }
     }
   }
