@@ -207,6 +207,49 @@ describe('@knighted/module', () => {
     })
   })
 
+  it('emits idiomatic exports for simple module.exports object literal', async t => {
+    const fixturePath = join(fixtures, 'exportsObjectShorthand.cjs')
+    const result = await transform(fixturePath, {
+      target: 'module',
+    })
+    const outFile = join(fixtures, 'exportsObjectShorthand.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(!result.includes('__exports'))
+    assert.ok(result.includes('export { foo };'))
+    assert.ok(result.includes('export { bar };'))
+    assert.ok(
+      result.includes('export { Baz };') || result.includes('export const Baz = class'),
+    )
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).foo, 1)
+    assert.equal((mod as any).bar(), 'bar')
+    const baz = new (mod as any).Baz()
+    assert.equal(baz.value(), 'baz')
+  })
+
+  it('falls back to helper for unsupported object literal keys', async t => {
+    const fixturePath = join(fixtures, 'exportsObjectComputed.cjs')
+    const result = await transform(fixturePath, { target: 'module' })
+    const outFile = join(fixtures, 'exportsObjectComputed.mjs')
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+
+    assert.ok(result.includes('__exports'))
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).default.x, 1)
+  })
+
   it('rewrites multi-declarator static require to imports when lowering to esm', async t => {
     const fixturePath = join(fixtures, 'requireMulti.cjs')
     const outFile = join(fixtures, 'requireMulti.mjs')
@@ -1006,7 +1049,7 @@ describe('@knighted/module', () => {
     assert.equal(!/\sexports\s/.test(result), true)
     assert.equal(result.indexOf('require.cache'), -1)
     assert.ok(/import\.meta/.test(result))
-    assert.ok(result.indexOf('{}') > -1)
+    assert.ok(result.indexOf('export default {') > -1)
 
     const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
     assert.equal(status, 0)
