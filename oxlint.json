@@ -6,7 +6,7 @@
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
     "@typescript-eslint/no-explicit-any": "error",
     "import/order": [
-      "warn",
+      "error",
       {
         "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
         "newlines-between": "always",
@@ -14,7 +14,7 @@
       }
     ],
     "import/no-unused-modules": [
-      "warn",
+      "error",
       { "missingExports": true, "unusedExports": true }
     ]
   },
