@@ -226,6 +226,7 @@ const defaultOptions = {
   idiomaticExports: 'safe',
   importMetaPrelude: 'auto',
   topLevelAwait: 'error',
+  cwd: undefined,
   out: undefined,
   inPlace: false,
 } satisfies ModuleOptions
@@ -261,7 +262,14 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
     await detectCircularRequireGraph(file, detectCycles, dirIndex || 'index.js')
   }
 
-  const outputPath = opts.inPlace ? file : opts.out ? resolve(opts.out) : undefined
+  const outputBase = opts.cwd ? resolve(opts.cwd) : undefined
+  const outputPath = opts.inPlace
+    ? file
+    : opts.out
+      ? outputBase
+        ? resolve(outputBase, opts.out)
+        : resolve(opts.out)
+      : undefined
 
   if (outputPath) {
     await writeFile(outputPath, source)

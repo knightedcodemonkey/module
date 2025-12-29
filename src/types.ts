@@ -65,6 +65,8 @@ export type ModuleOptions = {
   diagnostics?: (diag: Diagnostic) => void
   /** Optional source file path used for diagnostics context. */
   filePath?: string
+  /** Base directory used to resolve relative `out` paths; defaults to process.cwd(). */
+  cwd?: string
   /** Output directory or file path when writing. */
   out?: string
   /** Overwrite input files instead of writing to out. */

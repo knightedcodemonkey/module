@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -27,7 +27,7 @@
     "prettier": "prettier -w .",
     "prettier:check": "prettier -c .",
     "lint": "oxlint --config oxlint.json .",
-    "prepare": "husky install",
+    "prepare": "husky",
     "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
@@ -72,7 +72,6 @@
   },
   "dependencies": {
     "magic-string": "^0.30.21",
-    "node-module-type": "^1.0.4",
     "oxc-parser": "^0.105.0",
     "periscopic": "^4.0.2"
   },
