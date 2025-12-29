@@ -809,6 +809,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   let requireMainNeedsRealpath = false
   let needsRequireResolveHelper = false
   const nestedRequireStrategy = opts.nestedRequireStrategy ?? 'create-require'
+  const importMetaPreludeMode = opts.importMetaPrelude ?? 'auto'
+  let importMetaRef = false
 
   const shouldLowerCjs = opts.target === 'commonjs' && fullTransform
   const shouldRaiseEsm = opts.target === 'module' && fullTransform
@@ -884,6 +886,10 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
                 : 'import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href'
             if (requireMainStrategy === 'realpath') {
               requireMainNeedsRealpath = true
+              importMetaRef = true
+            }
+            if (requireMainStrategy === 'import-meta-main') {
+              importMetaRef = true
             }
             code.update(node.start, node.end, negate ? `!(${mainExpr})` : mainExpr)
             return
@@ -1077,6 +1083,14 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (isIdentifierName(node)) {
+        if (
+          shouldRaiseEsm &&
+          node.type === 'Identifier' &&
+          (node.name === '__dirname' || node.name === '__filename')
+        ) {
+          importMetaRef = true
+        }
+
         identifier({
           node,
           ancestors,
@@ -1146,8 +1160,14 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
         ? `${exportsRename}.${name}`
         : `${exportsRename}[${JSON.stringify(name)}]`
     const exportValueFor = (name: string) => {
-      if (name === '__dirname') return 'import.meta.dirname'
-      if (name === '__filename') return 'import.meta.filename'
+      if (name === '__dirname') {
+        importMetaRef = true
+        return 'import.meta.dirname'
+      }
+      if (name === '__filename') {
+        importMetaRef = true
+        return 'import.meta.filename'
+      }
       return name
     }
     const tempNameFor = (name: string) => {
@@ -1218,6 +1238,10 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     const importPrelude: string[] = []
 
     if (needsCreateRequire || needsRequireResolveHelper) {
+      importMetaRef = true
+    }
+
+    if (needsCreateRequire || needsRequireResolveHelper) {
       importPrelude.push('import { createRequire } from "node:module";\n')
     }
 
@@ -1270,10 +1294,15 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
     const prelude = `${importPrelude.join('')}${
       importPrelude.length ? '\n' : ''
-    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}${exportsBagInit}${modulePrelude}void import.meta.filename;
-`
+    }${setupPrelude.join('')}${setupPrelude.length ? '\n' : ''}${requireInit}${requireResolveInit}${exportsBagInit}${modulePrelude}`
 
-    code.prepend(prelude)
+    const importMetaTouch = (() => {
+      if (importMetaPreludeMode === 'on') return 'void import.meta.filename;\n'
+      if (importMetaPreludeMode === 'off') return ''
+      return importMetaRef ? 'void import.meta.filename;\n' : ''
+    })()
+
+    code.prepend(`${prelude}${importMetaTouch}`)
   }
 
   if (opts.target === 'commonjs' && fullTransform && containsTopLevelAwait) {

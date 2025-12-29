@@ -130,7 +130,9 @@ type ModuleOptions = {
   requireMainStrategy?: 'import-meta-main' | 'realpath'
   detectCircularRequires?: 'off' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
+  importMetaPrelude?: 'off' | 'auto' | 'on'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
+  idiomaticExports?: 'off' | 'safe' | 'aggressive'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
   out?: string
   inPlace?: boolean
@@ -149,11 +151,13 @@ type ModuleOptions = {
 - `importMeta` (`shim`): rewrite `import.meta.*` to CommonJS equivalents.
 - `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
 - `requireMainStrategy` (`import-meta-main`): use `import.meta.main` or the realpath-based `pathToFileURL(realpathSync(process.argv[1])).href` check.
+- `importMetaPrelude` (`auto`): emit a no-op `void import.meta.filename;` touch. `on` always emits; `off` never emits; `auto` emits only when helpers that reference `import.meta.*` are synthesized (e.g., `__dirname`/`__filename` in CJS→ESM, require-main shims, createRequire helpers). Useful for bundlers/transpilers that do usage-based `import.meta` polyfilling.
 - `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
 - `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback. Precedence: the callback (if provided) runs first; if it returns a string, that wins. If it returns `undefined` or `null`, the appenders still apply.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
+- `idiomaticExports` (`safe`): when raising CJS to ESM, attempt to synthesize `export` statements directly when it is safe. `off` always uses the helper bag; `aggressive` currently matches `safe` heuristics.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
 - CommonJS → ESM lowering will throw on `with` statements and unshadowed `eval` calls to avoid unsound rewrites.
 

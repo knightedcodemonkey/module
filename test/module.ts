@@ -1231,6 +1231,44 @@ describe('@knighted/module', () => {
     assert.ok(diagnostics.some(d => d.code === 'idiomatic-exports-fallback'))
   })
 
+  it('omits import.meta prelude in auto mode when not needed', async () => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+
+    const result = await transform(fixturePath, { target: 'module' })
+
+    assert.equal(result.includes('void import.meta.filename;'), false)
+  })
+
+  it('emits import.meta prelude in auto mode when helpers use import.meta', async () => {
+    const fixturePath = join(fixtures, '__dirname.cjs')
+
+    const result = await transform(fixturePath, { target: 'module' })
+
+    assert.ok(result.includes('void import.meta.filename;'))
+  })
+
+  it('honors importMetaPrelude: off', async () => {
+    const fixturePath = join(fixtures, '__dirname.cjs')
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      importMetaPrelude: 'off',
+    })
+
+    assert.equal(result.includes('void import.meta.filename;'), false)
+  })
+
+  it('honors importMetaPrelude: on', async () => {
+    const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
+
+    const result = await transform(fixturePath, {
+      target: 'module',
+      importMetaPrelude: 'on',
+    })
+
+    assert.ok(result.includes('void import.meta.filename;'))
+  })
+
   it('emits diagnostics for CJS to ESM edge cases', async () => {
     const fixturePath = join(fixtures, 'diagnostics.cjs')
     const diagnostics: Array<{ code: string }> = []

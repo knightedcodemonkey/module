@@ -224,6 +224,7 @@ const defaultOptions = {
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
   idiomaticExports: 'safe',
+  importMetaPrelude: 'auto',
   topLevelAwait: 'error',
   out: undefined,
   inPlace: false,
