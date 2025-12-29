@@ -1849,6 +1849,34 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
   })
 
+  it('resolves relative input and output against cwd', async t => {
+    const relSource = 'cwdFile.cjs'
+    const relOut = join('cwd-rel', 'out.mjs')
+    const expectedDir = join(fixtures, 'cwd-rel')
+    const expectedOut = join(expectedDir, 'out.mjs')
+    const unintendedDir = join(process.cwd(), 'cwd-rel')
+
+    await mkdir(expectedDir, { recursive: true })
+
+    t.after(async () => {
+      await rm(expectedDir, { recursive: true, force: true })
+      if (unintendedDir !== expectedDir) {
+        await rm(unintendedDir, { recursive: true, force: true })
+      }
+    })
+
+    await transform(relSource, { target: 'module', cwd: fixtures, out: relOut })
+
+    assert.equal(await isValidFilename(expectedOut), true)
+    if (unintendedDir !== expectedDir) {
+      assert.equal(await isValidFilename(join(unintendedDir, 'out.mjs')), false)
+    }
+
+    const mod = await import(pathToFileURL(expectedOut).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.answer, 42)
+  })
+
   it('writes transformed source to a file when option enabled', async t => {
     const mjs = join(fixtures, 'transformed.mjs')
     const cjs = join(fixtures, 'transformed.cjs')

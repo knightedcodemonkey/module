@@ -232,12 +232,13 @@ const defaultOptions = {
 } satisfies ModuleOptions
 const transform = async (filename: string, options: ModuleOptions = defaultOptions) => {
   const opts = { ...defaultOptions, ...options, filePath: filename }
+  const cwdBase = opts.cwd ? resolve(opts.cwd) : process.cwd()
   const appendMode: AppendJsExtensionMode =
     options?.appendJsExtension ?? (opts.target === 'module' ? 'relative-only' : 'off')
   const dirIndex =
     opts.appendDirectoryIndex === undefined ? 'index.js' : opts.appendDirectoryIndex
   const detectCycles: DetectCircularRequires = opts.detectCircularRequires ?? 'off'
-  const file = resolve(filename)
+  const file = resolve(cwdBase, filename)
   const code = (await readFile(file)).toString()
   const ast = parse(filename, code)
   let source = await format(code, ast, opts)
@@ -262,13 +263,10 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
     await detectCircularRequireGraph(file, detectCycles, dirIndex || 'index.js')
   }
 
-  const outputBase = opts.cwd ? resolve(opts.cwd) : undefined
   const outputPath = opts.inPlace
     ? file
     : opts.out
-      ? outputBase
-        ? resolve(outputBase, opts.out)
-        : resolve(opts.out)
+      ? resolve(cwdBase, opts.out)
       : undefined
 
   if (outputPath) {
