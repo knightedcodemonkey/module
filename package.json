@@ -40,6 +40,7 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
     "build": "npm run build:types && npm run build:dual",
+    "cycles": "madge --circular src --extensions ts,js --ts-config tsconfig.json",
     "prepack": "npm run build && node scripts/setImportsToDist.js",
     "postpack": "node scripts/restoreImportsToSrc.js"
   },
@@ -72,6 +73,7 @@
     "c8": "^10.1.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
+    "madge": "^8.0.0",
     "oxlint": "^1.35.0",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
@@ -82,6 +84,11 @@
     "node-module-type": "^1.0.4",
     "oxc-parser": "^0.105.0",
     "periscopic": "^4.0.2"
+  },
+  "overrides": {
+    "module-lookup-amd": {
+      "glob": "^9.0.0"
+    }
   },
   "prettier": {
     "arrowParens": "avoid",

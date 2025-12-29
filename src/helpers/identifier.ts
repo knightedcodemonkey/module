@@ -1,5 +1,6 @@
 import type { Node, IdentifierName } from 'oxc-parser'
 import { analyze, type Scope as PeriscopicScope } from 'periscopic'
+import type { Program as EstreeProgram } from 'estree'
 
 /**
  * Focus exclusively on IdentifierName type as it has the name property,
@@ -26,7 +27,7 @@ const getScopeContext = (program: Node): ScopeContext => {
     return cached
   }
 
-  const { scope } = analyze(program as any)
+  const { scope } = analyze(program as unknown as EstreeProgram)
   const context = { scope }
   scopeCache.set(program, context)
   return context
@@ -179,16 +180,16 @@ const identifier = {
     ]
 
     const declaratorIndex = ancestors.findIndex(ancestor => {
-      return (
-        ancestor.type === 'VariableDeclarator' &&
-        (ancestor === node || isInBindingPattern((ancestor as any).id, node))
-      )
+      if (ancestor.type !== 'VariableDeclarator') return false
+      return ancestor === node || isInBindingPattern(ancestor.id, node)
     })
 
     if (declaratorIndex === -1) return false
 
-    const declarator = ancestors[declaratorIndex] as any
+    const declaratorNode = ancestors[declaratorIndex]
     const declaration = ancestors[declaratorIndex - 1]
+
+    if (declaratorNode?.type !== 'VariableDeclarator') return false
 
     return (
       declaration?.type === 'VariableDeclaration' &&
@@ -196,7 +197,7 @@ const identifier = {
       ancestors.every(ancestor => {
         return !varBoundScopes.includes(ancestor.type)
       }) &&
-      (declarator.id === node || isInBindingPattern(declarator.id, node))
+      (declaratorNode.id === node || isInBindingPattern(declaratorNode.id, node))
     )
   },
 

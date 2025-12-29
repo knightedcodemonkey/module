@@ -1,4 +1,21 @@
-import type { ParseResult } from 'oxc-parser'
+import type { Node, ParseResult } from 'oxc-parser'
+import {
+  getModuleExportName,
+  isAstNode,
+  isCallExpressionNode,
+  isIdentifierNode,
+  isMemberExpressionNode,
+} from '#helpers/ast.js'
+import type {
+  CallExpressionNode,
+  LiteralNode,
+  ModuleExportNameNode,
+  ProgramNode,
+  ImportDefaultSpecifierNode,
+  ImportNamespaceSpecifierNode,
+  ImportSpecifierNode,
+  ExportsMap,
+} from '#helpers/ast.js'
 import type { FormatterOptions, ExportsMeta, Diagnostic } from './types.js'
 import MagicString from 'magic-string'
 
@@ -14,15 +31,15 @@ import { ancestorWalk } from '#walk'
 
 const isValidIdent = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
 
-const expressionHasRequireCall = (node: any, shadowed: Set<string>) => {
+const expressionHasRequireCall = (node: Node, shadowed: Set<string>) => {
   let found = false
 
-  const walkNode = (n: any) => {
-    if (!n || found) return
+  const walkNode = (n: unknown) => {
+    if (!isAstNode(n) || found) return
 
     if (
-      n.type === 'CallExpression' &&
-      n.callee?.type === 'Identifier' &&
+      isCallExpressionNode(n) &&
+      isIdentifierNode(n.callee) &&
       n.callee.name === 'require' &&
       !shadowed.has('require')
     ) {
@@ -31,9 +48,9 @@ const expressionHasRequireCall = (node: any, shadowed: Set<string>) => {
     }
 
     if (
-      n.type === 'CallExpression' &&
-      n.callee?.type === 'MemberExpression' &&
-      n.callee.object?.type === 'Identifier' &&
+      isCallExpressionNode(n) &&
+      isMemberExpressionNode(n.callee) &&
+      isIdentifierNode(n.callee.object) &&
       n.callee.object.name === 'require' &&
       !shadowed.has('require')
     ) {
@@ -41,9 +58,10 @@ const expressionHasRequireCall = (node: any, shadowed: Set<string>) => {
       return
     }
 
-    const keys = Object.keys(n)
+    const record = n as unknown as Record<string, unknown>
+    const keys = Object.keys(record)
     for (const key of keys) {
-      const value = (n as any)[key]
+      const value = record[key]
       if (!value) continue
       if (Array.isArray(value)) {
         for (const item of value) {
@@ -79,7 +97,7 @@ const interopHelper = `const ${defaultInteropName} = mod => (mod && mod.__esModu
 const requireInteropName = '__requireDefault'
 const requireInteropHelper = `const ${requireInteropName} = mod => (mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod);\n`
 
-const isRequireCallee = (callee: any, shadowed: Set<string>) => {
+const isRequireCallee = (callee: Node, shadowed: Set<string>) => {
   if (
     callee.type === 'Identifier' &&
     callee.name === 'require' &&
@@ -102,14 +120,14 @@ const isRequireCallee = (callee: any, shadowed: Set<string>) => {
   return false
 }
 
-const isStaticRequire = (node: any, shadowed: Set<string>) =>
+const isStaticRequire = (node: Node, shadowed: Set<string>) =>
   node.type === 'CallExpression' &&
   isRequireCallee(node.callee, shadowed) &&
   node.arguments.length === 1 &&
   node.arguments[0].type === 'Literal' &&
-  typeof node.arguments[0].value === 'string'
+  typeof (node.arguments[0] as LiteralNode).value === 'string'
 
-const isRequireCall = (node: any, shadowed: Set<string>) =>
+const isRequireCall = (node: Node, shadowed: Set<string>) =>
   node.type === 'CallExpression' && isRequireCallee(node.callee, shadowed)
 
 type RequireTransform = {
@@ -119,7 +137,7 @@ type RequireTransform = {
 }
 
 const lowerCjsRequireToImports = (
-  program: any,
+  program: ProgramNode,
   code: MagicString,
   shadowed: Set<string>,
 ) => {
@@ -135,19 +153,23 @@ const lowerCjsRequireToImports = (
     return base.endsWith('.json')
   }
 
-  for (const stmt of program.body as any[]) {
+  for (const stmt of program.body) {
     if (stmt.type === 'VariableDeclaration') {
       const decls = stmt.declarations
       const allStatic =
         decls.length > 0 &&
-        decls.every((decl: any) => decl.init && isStaticRequire(decl.init, shadowed))
+        decls.every(decl => decl.init && isStaticRequire(decl.init, shadowed))
 
       if (allStatic) {
         for (const decl of decls) {
-          const init = decl.init!
+          const init = decl.init as CallExpressionNode | null
+          if (!init || !isCallExpressionNode(init)) {
+            needsCreateRequire = true
+            continue
+          }
           const arg = init.arguments[0]
           const source = code.slice(arg.start, arg.end)
-          const value = (arg as any).value as string
+          const value = (arg as LiteralNode).value
           const isJson = typeof value === 'string' && isJsonSpecifier(value)
 
           const ns = `__cjsImport${nsIndex++}`
@@ -203,9 +225,14 @@ const lowerCjsRequireToImports = (
       const expr = stmt.expression
 
       if (expr && isStaticRequire(expr, shadowed)) {
+        if (!isCallExpressionNode(expr)) {
+          needsCreateRequire = true
+          continue
+        }
+
         const arg = expr.arguments[0]
         const source = code.slice(arg.start, arg.end)
-        const value = (arg as any).value as string
+        const value = (arg as LiteralNode).value
         const isJson = typeof value === 'string' && isJsonSpecifier(value)
 
         const jsonImport = isJson ? `${source} with { type: "json" }` : source
@@ -224,8 +251,7 @@ const lowerCjsRequireToImports = (
   return { transforms, imports, hoisted, needsCreateRequire, needsInteropHelper }
 }
 
-const isRequireMainMember = (node: any, shadowed: Set<string>) =>
-  node &&
+const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
   node.type === 'MemberExpression' &&
   node.object.type === 'Identifier' &&
   node.object.name === 'require' &&
@@ -233,11 +259,13 @@ const isRequireMainMember = (node: any, shadowed: Set<string>) =>
   node.property.type === 'Identifier' &&
   node.property.name === 'main'
 
-const hasTopLevelAwait = (program: any) => {
+const hasTopLevelAwait = (program: ProgramNode) => {
   let found = false
 
-  const walkNode = (node: any, inFunction: boolean) => {
+  const walkNode = (node: unknown, inFunction: boolean) => {
     if (found) return
+
+    if (!isAstNode(node)) return
 
     switch (node.type) {
       case 'FunctionDeclaration':
@@ -254,9 +282,10 @@ const hasTopLevelAwait = (program: any) => {
       return
     }
 
-    const keys = Object.keys(node)
+    const record = node as unknown as Record<string, unknown>
+    const keys = Object.keys(record)
     for (const key of keys) {
-      const value = (node as any)[key]
+      const value = record[key]
       if (!value) continue
 
       if (Array.isArray(value)) {
@@ -277,7 +306,7 @@ const hasTopLevelAwait = (program: any) => {
   return found
 }
 
-const isAsyncContext = (ancestors: any[]) => {
+const isAsyncContext = (ancestors: Node[]) => {
   for (let i = ancestors.length - 1; i >= 0; i -= 1) {
     const node = ancestors[i]
     if (
@@ -298,7 +327,7 @@ const isAsyncContext = (ancestors: any[]) => {
 }
 
 const lowerEsmToCjs = (
-  program: any,
+  program: ProgramNode,
   code: MagicString,
   opts: FormatterOptions,
   containsTopLevelAwait: boolean,
@@ -309,15 +338,19 @@ const lowerEsmToCjs = (
   let needsInterop = false
   let importIndex = 0
 
-  for (const node of program.body as any[]) {
+  for (const node of program.body) {
     if (node.type === 'ImportDeclaration') {
       const srcLiteral = code.slice(node.source.start, node.source.end)
       const specifiers = node.specifiers ?? []
-      const defaultSpec = specifiers.find((s: any) => s.type === 'ImportDefaultSpecifier')
-      const namespaceSpec = specifiers.find(
-        (s: any) => s.type === 'ImportNamespaceSpecifier',
+      const defaultSpec = specifiers.find(
+        (s): s is ImportDefaultSpecifierNode => s.type === 'ImportDefaultSpecifier',
       )
-      const namedSpecs = specifiers.filter((s: any) => s.type === 'ImportSpecifier')
+      const namespaceSpec = specifiers.find(
+        (s): s is ImportNamespaceSpecifierNode => s.type === 'ImportNamespaceSpecifier',
+      )
+      const namedSpecs = specifiers.filter(
+        (s): s is ImportSpecifierNode => s.type === 'ImportSpecifier',
+      )
 
       // Side-effect import
       if (!specifiers.length) {
@@ -358,8 +391,9 @@ const lowerEsmToCjs = (
       }
 
       if (namedSpecs.length) {
-        const pairs = namedSpecs.map((s: any) => {
-          const imported = s.imported.name
+        const pairs = namedSpecs.map(s => {
+          const imported = getModuleExportName(s.imported as ModuleExportNameNode)
+          if (!imported) return s.local.name
           const local = s.local.name
           return imported === local ? imported : `${imported}: ${local}`
         })
@@ -387,13 +421,11 @@ const lowerEsmToCjs = (
               exportedNames.push(d.id.name)
             }
           }
-        } else if ((decl as any).id?.type === 'Identifier') {
-          exportedNames.push((decl as any).id.name)
+        } else if ('id' in decl && decl.id?.type === 'Identifier') {
+          exportedNames.push(decl.id.name)
         }
 
-        const exportLines = exportedNames.map(name =>
-          exportAssignment(name, name, live as any),
-        )
+        const exportLines = exportedNames.map(name => exportAssignment(name, name, live))
 
         exportTransforms.push({
           start: node.start,
@@ -412,8 +444,9 @@ const lowerEsmToCjs = (
 
           for (const spec of node.specifiers) {
             if (spec.type !== 'ExportSpecifier') continue
-            const exported = spec.exported.name
-            const imported = spec.local.name
+            const exported = getModuleExportName(spec.exported as ModuleExportNameNode)
+            const imported = getModuleExportName(spec.local as ModuleExportNameNode)
+            if (!exported || !imported) continue
 
             let rhs = `${modIdent}.${imported}`
             if (imported === 'default') {
@@ -421,7 +454,7 @@ const lowerEsmToCjs = (
               needsInterop = true
             }
 
-            lines.push(exportAssignment(exported, rhs, live as any))
+            lines.push(exportAssignment(exported, rhs, live))
           }
 
           exportTransforms.push({
@@ -434,9 +467,11 @@ const lowerEsmToCjs = (
           const lines: string[] = []
           for (const spec of node.specifiers) {
             if (spec.type !== 'ExportSpecifier') continue
-            const exported = spec.exported.name
-            const local = spec.local.name
-            lines.push(exportAssignment(exported, local, live as any))
+            const exported = getModuleExportName(spec.exported as ModuleExportNameNode)
+            const local = getModuleExportName(spec.local as ModuleExportNameNode)
+            if (!exported || !local) continue
+
+            lines.push(exportAssignment(exported, local, live))
           }
           exportTransforms.push({
             start: node.start,
@@ -487,12 +522,15 @@ const lowerEsmToCjs = (
 
     if (node.type === 'ExportAllDeclaration') {
       const srcLiteral = code.slice(node.source.start, node.source.end)
-      if ((node as any).exported) {
-        const exported = (node as any).exported.name
+      if ('exported' in node && node.exported) {
+        const exported = getModuleExportName(node.exported as ModuleExportNameNode)
+        if (!exported) {
+          continue
+        }
         const modIdent = `__mod${importIndex++}`
         const lines = [
           `const ${modIdent} = require(${srcLiteral});`,
-          exportAssignment(exported, modIdent, live as any),
+          exportAssignment(exported, modIdent, live),
         ]
         exportTransforms.push({
           start: node.start,
@@ -592,7 +630,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     }
   }
 
-  const exportTable =
+  const exportTable: ExportsMap | null =
     opts.target === 'module' ? await collectCjsExports(ast.program) : null
   const idiomaticMode =
     opts.target === 'module' && fullTransform ? (opts.idiomaticExports ?? 'safe') : 'off'
@@ -675,7 +713,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     ])
     const isValidExportName = (name: string) =>
       /^[$A-Z_a-z][$\w]*$/.test(name) && !reservedExports.has(name)
-    const isAllowedRhs = (node: any) => {
+    const isAllowedRhs = (node: Node) => {
       return (
         node.type === 'Identifier' ||
         node.type === 'Literal' ||
@@ -691,7 +729,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       const entries = [...exportTable.values()]
       if (!entries.length) return { ok: false, reason: 'no-exports' }
 
-      if ((exportTable as any).hasUnsupportedExportWrite) {
+      if (exportTable.hasUnsupportedExportWrite) {
         return { ok: false, reason: 'unsupported-left' }
       }
 
@@ -714,7 +752,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
 
       const requireShadowed = shadowedBindings
 
-      const rhsSourceFor = (node: any) => {
+      const rhsSourceFor = (node: Node) => {
         const raw = code.slice(node.start, node.end)
         return raw
           .replace(/\b__dirname\b/g, 'import.meta.dirname')
@@ -722,7 +760,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       for (const entry of entries) {
-        const write = entry.writes[0] as any
+        const write = entry.writes[0]
         if (write.type !== 'AssignmentExpression') {
           return { ok: false, reason: 'unsupported-write-kind' }
         }
@@ -937,7 +975,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
             if (asyncCapable) {
               const arg = node.arguments[0]
               const argSrc = arg ? code.slice(arg.start, arg.end) : 'undefined'
-              const literalVal = (arg as any)?.value
+              const literalVal = (arg as LiteralNode | undefined)?.value
               const isJson =
                 arg?.type === 'Literal' &&
                 typeof literalVal === 'string' &&
@@ -1064,7 +1102,7 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       }
 
       if (shouldRaiseEsm && node.type === 'ThisExpression') {
-        const bindsThis = (ancestor: any) => {
+        const bindsThis = (ancestor: Node) => {
           return (
             ancestor.type === 'FunctionDeclaration' ||
             ancestor.type === 'FunctionExpression' ||

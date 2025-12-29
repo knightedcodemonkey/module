@@ -4,6 +4,7 @@
   "rules": {
     "no-console": "error",
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
+    "@typescript-eslint/no-explicit-any": "error",
     "import/no-unused-modules": [
       "warn",
       { "missingExports": true, "unusedExports": true }
@@ -27,6 +28,12 @@
       "files": ["test/fixtures/identifiers/**"],
       "rules": {
         "no-unused-vars": "off"
+      }
+    },
+    {
+      "files": ["test/**"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
       }
     }
   ]

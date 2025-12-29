@@ -5,7 +5,7 @@ import { ancestorWalk } from '#walk'
 import { identifier } from '#helpers/identifier.js'
 import { scopeNodes } from './scopeNodes.js'
 
-const addBindingNames = (pattern: any, into: Set<string>) => {
+const addBindingNames = (pattern: Node | null | undefined, into: Set<string>) => {
   if (!pattern) return
 
   switch (pattern.type) {
