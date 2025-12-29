@@ -2,7 +2,7 @@ import MagicString from 'magic-string'
 import type { MemberExpression, Node } from 'oxc-parser'
 
 import type { FormatterOptions } from '../types.js'
-import { exportsRename } from '#utils/exports.js'
+import { exportsRename } from '../utils/exports.js'
 
 type MemberExpressionExtras = {
   onRequireResolve?: () => void

@@ -19,7 +19,7 @@ import type {
 } from 'oxc-parser'
 import { parseSync } from 'oxc-parser'
 
-import { walk } from '#walk'
+import { walk } from './walk.js'
 
 type Spec = {
   type: 'StringLiteral' | 'TemplateLiteral' | 'BinaryExpression' | 'NewExpression'
@@ -206,7 +206,7 @@ const formatSpecifiers = async (src: string, ast: ParseResult, cb: Callback) => 
       }
 
       if (node.type === 'TSImportType') {
-        const source = (node as any).source
+        const source = (node as { source?: Node }).source
 
         if (source && isStringLiteral(source)) {
           const { start, end, value } = source

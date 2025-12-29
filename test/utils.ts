@@ -4,10 +4,10 @@ import { resolve, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 
-import { parse } from '#parse'
-import { collectModuleIdentifiers } from '#utils/identifiers.js'
-import { collectCjsExports } from '#utils/exports.js'
-import { getLangFromExt } from '#utils/lang.js'
+import { parse } from '../src/parse.js'
+import { collectModuleIdentifiers } from '../src/utils/identifiers.js'
+import { collectCjsExports } from '../src/utils/exports.js'
+import { getLangFromExt } from '../src/utils/lang.js'
 
 // Use fixtures to more easily track character offsets and line numbers in test cases.
 const fixtures = resolve(import.meta.dirname, 'fixtures')

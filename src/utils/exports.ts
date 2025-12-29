@@ -1,7 +1,7 @@
 import type { Node } from 'oxc-parser'
 
-import type { CjsExport } from '../types.js'
-import { ancestorWalk } from '#walk'
+import type { CjsExport, SpannedNode } from '../types.js'
+import { ancestorWalk } from '../walk.js'
 
 const exportsRename = '__exports'
 const requireMainRgx = /(require\.main\s*===\s*module|module\s*===\s*require\.main)/g
@@ -103,8 +103,12 @@ const resolveBase = (
   return null
 }
 
+type ExportsMap = Map<string, CjsExport> & {
+  hasUnsupportedExportWrite?: boolean
+}
+
 const collectCjsExports = async (ast: Node) => {
-  const exportsMap = new Map<string, CjsExport>()
+  const exportsMap: ExportsMap = new Map()
   const localToExport = new Map<string, Set<string>>()
   const aliases = new Map<string, ExportRef['via']>()
   const literals = new Map<string, string | number>()
@@ -133,7 +137,7 @@ const collectCjsExports = async (ast: Node) => {
     }
 
     entry.via.add(ref.via)
-    entry.writes.push(node as any)
+    entry.writes.push(node as SpannedNode)
 
     if (options?.hasGetter) {
       entry.hasGetter = true
@@ -214,7 +218,7 @@ const collectCjsExports = async (ast: Node) => {
             keys.forEach(key => {
               const entry = exportsMap.get(key)
               if (entry) {
-                entry.reassignments.push(node as any)
+                entry.reassignments.push(node as SpannedNode)
                 exportsMap.set(key, entry)
               }
             })
@@ -389,7 +393,7 @@ const collectCjsExports = async (ast: Node) => {
       }
     },
   })
-  ;(exportsMap as any).hasUnsupportedExportWrite = hasUnsupportedExportWrite
+  exportsMap.hasUnsupportedExportWrite = hasUnsupportedExportWrite
 
   return exportsMap
 }
