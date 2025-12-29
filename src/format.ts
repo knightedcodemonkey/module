@@ -805,7 +805,10 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
           seen.add(propName)
           if (rhs.type === 'Identifier') {
             const rhsId = rhsSourceFor(rhs)
-            if (rhsId === rhs.name) {
+            const rhsName = rhs.name
+            if (rhsId === rhsName && rhsName === propName) {
+              exportsOut.push(`export { ${propName} };`)
+            } else if (rhsId === rhsName) {
               exportsOut.push(`export { ${rhsId} as ${propName} };`)
             } else {
               exportsOut.push(`export const ${propName} = ${rhsId};`)
@@ -815,7 +818,12 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
           }
         }
 
-        replacements.push({ start: write.start, end: write.end })
+        // Trim trailing whitespace and one optional semicolon so the idiomatic export
+        // replacement does not leave the original `;` behind (avoids emitting `;;`).
+        let end = write.end
+        while (end < src.length && (src[end] === ' ' || src[end] === '\t')) end++
+        if (end < src.length && src[end] === ';') end++
+        replacements.push({ start: write.start, end })
       }
 
       if (!seen.size) return { ok: false, reason: 'no-seen' }
