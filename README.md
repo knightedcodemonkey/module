@@ -160,7 +160,7 @@ type ModuleOptions = {
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `idiomaticExports` (`safe`): when raising CJS to ESM, attempt to synthesize `export` statements directly when it is safe. `off` always uses the helper bag; `aggressive` currently matches `safe` heuristics.
-- `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
+- `out`/`inPlace`: choose output location. Default returns the transformed string (CLI emits to stdout). `out` writes to the provided path. `inPlace` overwrites the input files on disk and does not return/emit the code.
 - `cwd` (`process.cwd()`): Base directory used to resolve relative `out` paths.
 
 > [!NOTE]
