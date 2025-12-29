@@ -1179,6 +1179,26 @@ describe('@knighted/module', () => {
     assert.equal((mod as any).bar(), 'bar')
   })
 
+  it('emits shorthand exports when names match', async t => {
+    const fixturePath = join(fixtures, 'idiomaticShorthand.cjs')
+    const outFile = join(fixtures, 'idiomaticShorthand.mjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'module' })
+    await writeFile(outFile, result)
+
+    assert.equal(result.includes('__exports'), false)
+    assert.ok(result.includes('export { example };'))
+    assert.equal(result.includes(';;'), false)
+
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    const mod = await import(pathToFileURL(outFile).href)
+    assert.equal((mod as any).example(), 'ok')
+  })
+
   it('respects idiomaticExports: off and keeps helper bag', async t => {
     const fixturePath = join(fixtures, 'idiomaticSafe.cjs')
     const outFile = join(fixtures, 'idiomaticOff.mjs')
