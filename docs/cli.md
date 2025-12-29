@@ -2,6 +2,9 @@
 
 Command-line wrapper around `@knighted/module` for transforming files between ESM and CommonJS.
 
+> [!NOTE]
+> The name "dub" comes from the literal act of dubbing a squire into a knight—short, quick, and accurate.
+
 ## Requirements
 
 - Node >= 22.21.1 (or Node 24+)
