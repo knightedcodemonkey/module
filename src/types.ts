@@ -57,6 +57,8 @@ export type ModuleOptions = {
   cjsDefault?: 'module-exports' | 'auto' | 'none'
   /** Emit idiomatic exports when raising CJS to ESM. */
   idiomaticExports?: 'off' | 'safe' | 'aggressive'
+  /** Control whether a no-op import.meta prelude is emitted. */
+  importMetaPrelude?: 'off' | 'auto' | 'on'
   /** Handling for top-level await constructs. */
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
   /** Optional diagnostics sink for warnings/errors emitted during transform. */
