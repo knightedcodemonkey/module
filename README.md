@@ -135,6 +135,7 @@ type ModuleOptions = {
   idiomaticExports?: 'off' | 'safe' | 'aggressive'
   topLevelAwait?: 'error' | 'wrap' | 'preserve'
   out?: string
+  cwd?: string
   inPlace?: boolean
 }
 ```
@@ -159,7 +160,7 @@ type ModuleOptions = {
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `idiomaticExports` (`safe`): when raising CJS to ESM, attempt to synthesize `export` statements directly when it is safe. `off` always uses the helper bag; `aggressive` currently matches `safe` heuristics.
 - `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
-- CommonJS → ESM lowering will throw on `with` statements and unshadowed `eval` calls to avoid unsound rewrites.
+- `cwd` (`process.cwd()`): Base directory used to resolve relative `out` paths.
 
 > [!NOTE]
 > Package-level metadata (`package.json` updates such as setting `"type": "module"` or authoring `exports`) is not edited by this tool today; plan that change outside the per-file transform.
