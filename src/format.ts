@@ -1085,8 +1085,8 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       if (isIdentifierName(node)) {
         if (
           shouldRaiseEsm &&
-          (node as any).name &&
-          ((node as any).name === '__dirname' || (node as any).name === '__filename')
+          node.type === 'Identifier' &&
+          (node.name === '__dirname' || node.name === '__filename')
         ) {
           importMetaRef = true
         }
