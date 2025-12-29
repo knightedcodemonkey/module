@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
-import { rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
 
 import { transform } from '../src/module.js'
@@ -1817,6 +1817,64 @@ describe('@knighted/module', () => {
     const mod = requireCjs(outFile)
     assert.equal(mod.dirnameAlias, join(fixtures, 'edgecases'))
     assert.ok(result.includes('__dirname'))
+  })
+
+  it('resolves relative out paths against cwd option', async t => {
+    const source = join(fixtures, 'file.cjs')
+    const relOut = join('cwd-out', 'out.mjs')
+    const expectedDir = join(fixtures, 'cwd-out')
+    const expected = join(expectedDir, 'out.mjs')
+    const unintendedDir = join(process.cwd(), 'cwd-out')
+    const valuesSrc = join(fixtures, 'values.cjs')
+    const valuesDst = join(expectedDir, 'values.cjs')
+
+    await mkdir(expectedDir, { recursive: true })
+    await copyFile(valuesSrc, valuesDst)
+
+    t.after(async () => {
+      await rm(expectedDir, { recursive: true, force: true })
+      if (unintendedDir !== expectedDir) {
+        await rm(unintendedDir, { recursive: true, force: true })
+      }
+    })
+
+    await transform(source, { target: 'module', out: relOut, cwd: fixtures })
+
+    assert.equal(await isValidFilename(expected), true)
+    if (unintendedDir !== expectedDir) {
+      assert.equal(await isValidFilename(join(unintendedDir, 'out.mjs')), false)
+    }
+
+    const { status } = spawnSync('node', [expected], { stdio: 'inherit' })
+    assert.equal(status, 0)
+  })
+
+  it('resolves relative input and output against cwd', async t => {
+    const relSource = 'cwdFile.cjs'
+    const relOut = join('cwd-rel', 'out.mjs')
+    const expectedDir = join(fixtures, 'cwd-rel')
+    const expectedOut = join(expectedDir, 'out.mjs')
+    const unintendedDir = join(process.cwd(), 'cwd-rel')
+
+    await mkdir(expectedDir, { recursive: true })
+
+    t.after(async () => {
+      await rm(expectedDir, { recursive: true, force: true })
+      if (unintendedDir !== expectedDir) {
+        await rm(unintendedDir, { recursive: true, force: true })
+      }
+    })
+
+    await transform(relSource, { target: 'module', cwd: fixtures, out: relOut })
+
+    assert.equal(await isValidFilename(expectedOut), true)
+    if (unintendedDir !== expectedDir) {
+      assert.equal(await isValidFilename(join(unintendedDir, 'out.mjs')), false)
+    }
+
+    const mod = await import(pathToFileURL(expectedOut).href)
+    const exported = (mod as any).default ?? (mod as any)
+    assert.equal(exported.answer, 42)
   })
 
   it('writes transformed source to a file when option enabled', async t => {
