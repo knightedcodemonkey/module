@@ -16,6 +16,7 @@ Highlights
 - Configurable lowering modes: full syntax transforms or globals-only.
 - Specifier tools: add extensions, add directory indexes, or map with a custom callback.
 - Output control: write to disk (`out`/`inPlace`) or return the transformed string.
+- CLI: `dub` for batch transforms, dry-run/list/summary, stdin/stdout, and colorized diagnostics. See [docs/cli.md](docs/cli.md).
 
 > [!IMPORTANT]  
 > All parsing logic is applied under the assumption the code is in [strict mode](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode) which [modules run under by default](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#other_differences_between_modules_and_classic_scripts).
@@ -143,7 +144,7 @@ type ModuleOptions = {
 ### Behavior notes (defaults in parentheses)
 
 - `target` (`commonjs`): output module system.
-- `transformSyntax` (true): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped. See [globals-only](#globals-only-scope).
+- `transformSyntax` (`true`): enable/disable the ESM↔CJS lowering pass; set to `'globals-only'` to rewrite module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) while leaving import/export syntax untouched. In `'globals-only'`, no helpers are injected (e.g., `__requireResolve`), `require.resolve` rewrites to `import.meta.resolve`, and `idiomaticExports` is skipped. See [globals-only](docs/globals-only.md).
 - `liveBindings` (`strict`): getter-based live bindings, or snapshot (`loose`/`off`).
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
 - `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
@@ -159,7 +160,7 @@ type ModuleOptions = {
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `idiomaticExports` (`safe`): when raising CJS to ESM, attempt to synthesize `export` statements directly when it is safe. `off` always uses the helper bag; `aggressive` currently matches `safe` heuristics.
-- `out`/`inPlace`: write the transformed code to a file; otherwise the function returns the transformed string only.
+- `out`/`inPlace`: choose output location. Default returns the transformed string (CLI emits to stdout). `out` writes to the provided path. `inPlace` overwrites the input files on disk and does not return/emit the code.
 - `cwd` (`process.cwd()`): Base directory used to resolve relative `out` paths.
 
 > [!NOTE]
@@ -169,13 +170,6 @@ See [docs/esm-to-cjs.md](docs/esm-to-cjs.md) for deeper notes on live bindings, 
 
 > [!NOTE]
 > Known limitations: `with` and unshadowed `eval` are rejected when raising CJS to ESM because the rewrite would be unsound; bare specifiers are not rewritten—only relative specifiers participate in `rewriteSpecifier`.
-
-### Globals-only scope
-
-- Rewrites module globals (`import.meta.*`, `__dirname`, `__filename`, `require.main` shims) for the target side.
-- Optional specifier rewrites still run (`rewriteSpecifier`, `appendJsExtension`, `appendDirectoryIndex`).
-- Leaves imports/exports and interop untouched (no export bag, no idiomaticExports, no live-binding synthesis, no helpers like `__requireResolve`).
-- CJS→ESM: `require.resolve` maps to `import.meta.resolve` (URL return, ESM resolver) and may differ from CJS resolution. ESM→CJS: `import.meta` maps to CJS globals; no import lowering.
 
 ### Diagnostics callback example
 
@@ -213,20 +207,9 @@ TypeScript reports asymmetric module-global errors (e.g., `import.meta` in CJS, 
 
 Minimal flow:
 
-```js
-import { glob } from 'glob'
-import { transform } from '@knighted/module'
-
-const files = await glob('src/**/*.{ts,js,mts,cts}', { ignore: 'node_modules/**' })
-
-for (const file of files) {
-  await transform(file, {
-    target: 'commonjs', // or 'module' when raising CJS → ESM
-    inPlace: true,
-    transformSyntax: true,
-  })
-}
-// then run `tsc`
+```bash
+dub -t commonjs "src/**/*.{ts,js,mts,cts}" --ignore node_modules/** --transform-syntax globals-only --in-place
+tsc
 ```
 
-This pre-`tsc` step removes the flagged globals in the compiled orientation; runtime semantics still match the target build.
+This pre-`tsc` step rewrites globals-only (keeps import/export syntax) so the TypeScript checker sees already-rewritten sources; runtime semantics still match the target build.

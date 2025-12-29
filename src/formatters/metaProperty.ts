@@ -59,6 +59,9 @@ export const metaProperty = (
         case 'main':
           src.update(parent.start, parent.end, importMetaMainExpr(options.importMetaMain))
           break
+        default:
+          src.update(parent.start, parent.end, `module.${parent.property.name}`)
+          break
       }
     }
   }
