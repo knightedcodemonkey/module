@@ -5,15 +5,15 @@ import { specifier } from './specifier.js'
 import type { Spec } from './specifier.js'
 import type { TemplateLiteral } from 'oxc-parser'
 
-import { parse } from '#parse'
-import { format } from '#format'
-import { getLangFromExt } from '#utils/lang.js'
+import { parse } from './parse.js'
+import { format } from './format.js'
+import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions } from './types.js'
 import { builtinModules } from 'node:module'
 import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
 import { readFile as fsReadFile, stat } from 'node:fs/promises'
-import { parse as parseModule } from '#parse'
-import { walk } from '#walk'
+import { parse as parseModule } from './parse.js'
+import { walk } from './walk.js'
 
 type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>

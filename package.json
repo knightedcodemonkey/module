@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -18,14 +18,6 @@
     },
     "./package.json": "./package.json"
   },
-  "imports": {
-    "#parse": "./src/parse.js",
-    "#format": "./src/format.js",
-    "#utils/*.js": "./src/utils/*.js",
-    "#walk": "./src/walk.js",
-    "#helpers/*.js": "./src/helpers/*.js",
-    "#formatters/*.js": "./src/formatters/*.js"
-  },
   "engines": {
     "node": ">=22.21.1 <23 || >=24 <25"
   },
@@ -41,8 +33,7 @@
     "build:dual": "babel-dual-package src --extensions .ts",
     "build": "npm run build:types && npm run build:dual",
     "cycles": "madge --circular src --extensions ts,js --ts-config tsconfig.json",
-    "prepack": "npm run build && node scripts/setImportsToDist.js",
-    "postpack": "node scripts/restoreImportsToSrc.js"
+    "prepack": "npm run build"
   },
   "keywords": [
     "esm",

@@ -5,7 +5,7 @@ import {
   isCallExpressionNode,
   isIdentifierNode,
   isMemberExpressionNode,
-} from '#helpers/ast.js'
+} from './helpers/ast.js'
 import type {
   CallExpressionNode,
   LiteralNode,
@@ -15,19 +15,19 @@ import type {
   ImportNamespaceSpecifierNode,
   ImportSpecifierNode,
   ExportsMap,
-} from '#helpers/ast.js'
+} from './helpers/ast.js'
 import type { FormatterOptions, ExportsMeta, Diagnostic } from './types.js'
 import MagicString from 'magic-string'
 
-import { identifier } from '#formatters/identifier.js'
-import { metaProperty } from '#formatters/metaProperty.js'
-import { memberExpression } from '#formatters/memberExpression.js'
-import { assignmentExpression } from '#formatters/assignmentExpression.js'
-import { isValidUrl } from '#utils/url.js'
-import { exportsRename, collectCjsExports } from '#utils/exports.js'
-import { collectModuleIdentifiers } from '#utils/identifiers.js'
-import { isIdentifierName } from '#helpers/identifier.js'
-import { ancestorWalk } from '#walk'
+import { identifier } from './formatters/identifier.js'
+import { metaProperty } from './formatters/metaProperty.js'
+import { memberExpression } from './formatters/memberExpression.js'
+import { assignmentExpression } from './formatters/assignmentExpression.js'
+import { isValidUrl } from './utils/url.js'
+import { exportsRename, collectCjsExports } from './utils/exports.js'
+import { collectModuleIdentifiers } from './utils/identifiers.js'
+import { isIdentifierName } from './helpers/identifier.js'
+import { ancestorWalk } from './walk.js'
 
 const isValidIdent = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
 

@@ -19,7 +19,7 @@ import type {
 } from 'oxc-parser'
 import { parseSync } from 'oxc-parser'
 
-import { walk } from '#walk'
+import { walk } from './walk.js'
 
 type Spec = {
   type: 'StringLiteral' | 'TemplateLiteral' | 'BinaryExpression' | 'NewExpression'

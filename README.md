@@ -229,9 +229,3 @@ for (const file of files) {
 ```
 
 This pre-`tsc` step removes the flagged globals in the compiled orientation; runtime semantics still match the target build.
-
-## Roadmap
-
-- Emit source maps and clearer diagnostics for transform choices.
-- Broaden fixtures covering live-binding and top-level await edge cases across Node versions.
-- Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.

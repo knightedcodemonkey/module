@@ -1,7 +1,7 @@
 import type { Node } from 'oxc-parser'
 
 import type { CjsExport, SpannedNode } from '../types.js'
-import { ancestorWalk } from '#walk'
+import { ancestorWalk } from '../walk.js'
 
 const exportsRename = '__exports'
 const requireMainRgx = /(require\.main\s*===\s*module|module\s*===\s*require\.main)/g
