@@ -70,6 +70,7 @@ Short and long forms are supported.
 | -i    | --append-directory-index   | Append directory index (e.g. index.js) or false                 |
 | -c    | --detect-circular-requires | Warn/error on circular require (off \| warn \| error)          |
 | -H    | --detect-dual-package-hazard | Warn/error on mixed import/require of dual packages (off \| warn \| error) |
+|       | --dual-package-hazard-scope | Scope for dual package hazard detection (file \| project)      |
 | -a    | --top-level-await          | TLA handling (error \| wrap \| preserve)                       |
 | -d    | --cjs-default              | Default interop (module-exports \| auto \| none)               |
 | -e    | --idiomatic-exports        | Emit idiomatic exports when safe (off \| safe \| aggressive)    |

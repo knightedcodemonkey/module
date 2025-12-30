@@ -174,6 +174,187 @@ test('-H error exits on dual package hazard', async () => {
   }
 })
 
+test('--dual-package-hazard-scope project aggregates across files', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-project-'))
+  const fileImport = join(temp, 'entry.mjs')
+  const fileRequire = join(temp, 'entry.cjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'x-core',
+        version: '1.0.0',
+        exports: {
+          '.': { import: './x-core.mjs', require: './x-core.cjs' },
+        },
+        main: './x-core.cjs',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(fileImport, "import 'x-core'\n", 'utf8')
+  await writeFile(fileRequire, "require('x-core')\n", 'utf8')
+
+  try {
+    const result = runCli([
+      '-H',
+      'error',
+      '--dual-package-hazard-scope',
+      'project',
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      '--dry-run',
+      'entry.mjs',
+      'entry.cjs',
+    ])
+
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /dual-package-mixed-specifiers/)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('--dual-package-hazard-scope project emits subpath hazard once', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-subpath-'))
+  const fileRoot = join(temp, 'root.mjs')
+  const fileSub = join(temp, 'sub.mjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify({ name: 'x-core', version: '1.0.0', main: './index.cjs' }, null, 2),
+    'utf8',
+  )
+  await writeFile(fileRoot, "import 'x-core'\n", 'utf8')
+  await writeFile(fileSub, "import 'x-core/utils'\n", 'utf8')
+
+  try {
+    const result = runCli([
+      '-H',
+      'error',
+      '--dual-package-hazard-scope',
+      'project',
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      '--dry-run',
+      'root.mjs',
+      'sub.mjs',
+    ])
+
+    assert.equal(result.status, 1)
+    const count = (result.stderr.match(/dual-package-subpath/g) || []).length
+    assert.equal(count, 1)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('--dual-package-hazard-scope project surfaces conditional-exports', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-conditional-'))
+  const fileImport = join(temp, 'entry.mjs')
+  const fileRequire = join(temp, 'entry.cjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'x-core',
+        version: '1.2.3',
+        exports: { '.': { import: './x-core.mjs', require: './x-core.cjs' } },
+        main: './x-core.cjs',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(fileImport, "import 'x-core'\n", 'utf8')
+  await writeFile(fileRequire, "require('x-core')\n", 'utf8')
+
+  try {
+    const result = runCli([
+      '--dual-package-hazard-scope',
+      'project',
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      '--dry-run',
+      'entry.mjs',
+      'entry.cjs',
+    ])
+
+    assert.equal(result.status, 0)
+    assert.match(result.stderr, /dual-package-mixed-specifiers/)
+    assert.match(result.stderr, /dual-package-conditional-exports/)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('--dual-package-hazard-scope project emits JSON diagnostics', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-json-'))
+  const fileImport = join(temp, 'entry.mjs')
+  const fileRequire = join(temp, 'entry.cjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'x-core',
+        version: '1.0.0',
+        exports: { '.': { import: './x-core.mjs', require: './x-core.cjs' } },
+        main: './x-core.cjs',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(fileImport, "import 'x-core'\n", 'utf8')
+  await writeFile(fileRequire, "require('x-core')\n", 'utf8')
+
+  try {
+    const result = runCli([
+      '--dual-package-hazard-scope',
+      'project',
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      '--dry-run',
+      '--json',
+      'entry.mjs',
+      'entry.cjs',
+    ])
+
+    assert.equal(result.status, 0)
+    const payload = JSON.parse(result.stdout)
+    const codes = (payload.files ?? [])
+      .flatMap((f: any) => f.diagnostics ?? [])
+      .map((d: any) => d.code)
+    assert.ok(codes.includes('dual-package-mixed-specifiers'))
+    assert.ok(codes.includes('dual-package-conditional-exports'))
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
 test('rewrites __dirname for ESM TS projects (NodeNext)', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'module-cli-ts-node-next-'))
   const srcDir = join(temp, 'src')

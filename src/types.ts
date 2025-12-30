@@ -51,6 +51,8 @@ export type ModuleOptions = {
   detectCircularRequires?: 'off' | 'warn' | 'error'
   /** Detect divergent import/require usage of the same dual package (default warn). */
   detectDualPackageHazard?: 'off' | 'warn' | 'error'
+  /** Scope for dual package hazard detection. */
+  dualPackageHazardScope?: 'file' | 'project'
   /** Source used to provide require in ESM output. */
   requireSource?: 'builtin' | 'create-require'
   /** How to rewrite nested or non-hoistable require calls. */

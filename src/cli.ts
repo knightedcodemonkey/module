@@ -10,7 +10,7 @@ import { dirname, resolve, relative, join } from 'node:path'
 import { builtinModules } from 'node:module'
 import { glob } from 'glob'
 
-import { transform } from './module.js'
+import { transform, collectProjectDualPackageHazards } from './module.js'
 import { parse } from './parse.js'
 import { format } from './format.js'
 import { specifier } from './specifier.js'
@@ -31,6 +31,7 @@ const defaultOptions: ModuleOptions = {
   requireMainStrategy: 'import-meta-main',
   detectCircularRequires: 'off',
   detectDualPackageHazard: 'warn',
+  dualPackageHazardScope: 'file',
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
@@ -219,6 +220,12 @@ const optionsTable = [
     desc: 'Warn/error on mixed import/require of dual packages (off|warn|error)',
   },
   {
+    long: 'dual-package-hazard-scope',
+    short: undefined,
+    type: 'string',
+    desc: 'Scope for dual package hazard detection (file|project)',
+  },
+  {
     long: 'top-level-await',
     short: 'a',
     type: 'string',
@@ -315,7 +322,9 @@ type ParsedValues = Parsed['values']
 const buildHelp = (enableColor: boolean) => {
   const c = colorize(enableColor)
   const maxFlagLength = Math.max(
-    ...optionsTable.map(opt => `  -${opt.short}, --${opt.long}`.length),
+    ...optionsTable.map(opt =>
+      opt.short ? `  -${opt.short}, --${opt.long}`.length : `      --${opt.long}`.length,
+    ),
   )
   const lines = [
     `${c.bold('Usage:')} dub [options] <files...>`,
@@ -329,7 +338,7 @@ const buildHelp = (enableColor: boolean) => {
   ]
 
   for (const opt of optionsTable) {
-    const flag = `  -${opt.short}, --${opt.long}`
+    const flag = opt.short ? `  -${opt.short}, --${opt.long}` : `      --${opt.long}`
     const pad = ' '.repeat(Math.max(2, maxFlagLength - flag.length + 2))
     lines.push(`${c.bold(flag)}${pad}${opt.desc}`)
   }
@@ -394,6 +403,11 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
         values['detect-dual-package-hazard'] as string | undefined,
         ['off', 'warn', 'error'] as const,
       ) ?? defaultOptions.detectDualPackageHazard,
+    dualPackageHazardScope:
+      parseEnum(
+        values['dual-package-hazard-scope'] as string | undefined,
+        ['file', 'project'] as const,
+      ) ?? defaultOptions.dualPackageHazardScope,
     topLevelAwait:
       parseEnum(
         values['top-level-await'] as string | undefined,
@@ -555,6 +569,12 @@ const runFiles = async (
 ) => {
   const results: FileResult[] = []
   const logger = makeLogger(io.stdout, io.stderr)
+  const hazardScope = moduleOpts.dualPackageHazardScope ?? 'file'
+  const hazardMode = moduleOpts.detectDualPackageHazard ?? 'warn'
+  const projectHazards =
+    hazardScope === 'project' && hazardMode !== 'off'
+      ? await collectProjectDualPackageHazards(files, moduleOpts)
+      : null
 
   for (const file of files) {
     const diagnostics: Diagnostic[] = []
@@ -568,6 +588,8 @@ const runFiles = async (
       out: undefined,
       inPlace: false,
       filePath: file,
+      detectDualPackageHazard:
+        hazardScope === 'project' ? 'off' : moduleOpts.detectDualPackageHazard,
     }
 
     let writeTarget: string | undefined
@@ -586,6 +608,11 @@ const runFiles = async (
 
     const output = await transform(file, perFileOpts)
     const changed = output !== original
+
+    if (projectHazards) {
+      const extras = projectHazards.get(file)
+      if (extras?.length) diagnostics.push(...extras)
+    }
 
     if (flags.list && changed) {
       logger.info(file)
@@ -631,7 +658,10 @@ const runCli = async ({
     options: Object.fromEntries(
       optionsTable.map(opt => [
         opt.long,
-        { type: opt.type as 'string' | 'boolean', short: opt.short },
+        {
+          type: opt.type as 'string' | 'boolean',
+          ...(opt.short ? { short: opt.short } : {}),
+        },
       ]),
     ),
   })

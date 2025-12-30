@@ -6,14 +6,20 @@ import type { Spec } from './specifier.js'
 import type { TemplateLiteral } from 'oxc-parser'
 
 import { parse } from './parse.js'
-import { format } from './format.js'
+import {
+  format,
+  collectDualPackageUsage,
+  dualPackageHazardDiagnostics,
+  type PackageUsage,
+} from './format.js'
 import { getLangFromExt } from './utils/lang.js'
-import type { ModuleOptions } from './types.js'
+import type { ModuleOptions, Diagnostic } from './types.js'
 import { builtinModules } from 'node:module'
 import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
 import { readFile as fsReadFile, stat } from 'node:fs/promises'
 import { parse as parseModule } from './parse.js'
 import { walk } from './walk.js'
+import { collectModuleIdentifiers } from './utils/identifiers.js'
 
 type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>
@@ -207,6 +213,64 @@ const detectCircularRequireGraph = async (
   await dfs(entryFile, [])
 }
 
+const mergeUsageMaps = (
+  target: Map<string, PackageUsage>,
+  source: Map<string, PackageUsage>,
+) => {
+  for (const [pkg, usage] of source) {
+    const existing = target.get(pkg) ?? { imports: [], requires: [] }
+    existing.imports.push(...usage.imports)
+    existing.requires.push(...usage.requires)
+    target.set(pkg, existing)
+  }
+}
+
+const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOptions) => {
+  const hazardMode = opts.detectDualPackageHazard ?? 'warn'
+
+  if (hazardMode === 'off') return new Map<string, Diagnostic[]>()
+
+  const hazardLevel = hazardMode === 'error' ? 'error' : 'warning'
+  const usages = new Map<string, PackageUsage>()
+  const manifestCache = new Map<string, any | null>()
+
+  for (const file of files) {
+    const code = await readFile(file, 'utf8')
+    const ast = parseModule(file, code)
+    const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
+    const shadowedBindings = new Set(
+      [...moduleIdentifiers.entries()]
+        .filter(([, meta]) => meta.declare.length > 0)
+        .map(([name]) => name),
+    )
+    const perFileUsage = await collectDualPackageUsage(
+      ast.program,
+      shadowedBindings,
+      file,
+    )
+
+    mergeUsageMaps(usages, perFileUsage)
+  }
+
+  const diags = await dualPackageHazardDiagnostics({
+    usages,
+    hazardLevel,
+    cwd: opts.cwd,
+    manifestCache,
+  })
+  const byFile = new Map<string, Diagnostic[]>()
+
+  for (const diag of diags) {
+    const key = diag.filePath ?? files[0]
+    const existing = byFile.get(key) ?? []
+
+    existing.push(diag)
+    byFile.set(key, existing)
+  }
+
+  return byFile
+}
+
 const defaultOptions = {
   target: 'commonjs',
   sourceType: 'auto',
@@ -221,6 +285,7 @@ const defaultOptions = {
   requireMainStrategy: 'import-meta-main',
   detectCircularRequires: 'off',
   detectDualPackageHazard: 'warn',
+  dualPackageHazardScope: 'file',
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
@@ -277,4 +342,4 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
   return source
 }
 
-export { transform }
+export { transform, collectProjectDualPackageHazards }
