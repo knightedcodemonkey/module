@@ -5,8 +5,16 @@
     "no-console": "error",
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
     "@typescript-eslint/no-explicit-any": "error",
+    "import/order": [
+      "error",
+      {
+        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+        "newlines-between": "always",
+        "alphabetize": { "order": "asc", "caseInsensitive": true }
+      }
+    ],
     "import/no-unused-modules": [
-      "warn",
+      "error",
       { "missingExports": true, "unusedExports": true }
     ]
   },

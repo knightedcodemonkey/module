@@ -1,6 +1,8 @@
 import type { Node } from 'oxc-parser'
 import type { CjsExport } from '../types.js'
 
+export type { Node }
+
 export type IdentifierNode = Extract<Node, { type: 'Identifier' }>
 export type LiteralNode = Extract<Node, { type: 'Literal'; value?: unknown }>
 export type MemberExpressionNode = Extract<Node, { type: 'MemberExpression' }>
