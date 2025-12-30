@@ -21,8 +21,3 @@ Next:
 
 - Emit source maps and clearer diagnostics for transform choices.
 - Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.
-
-## Refactors
-
-- Split `src/format.ts` into focused modules: exports planning (idiomatic/helper), import/require lowering, diagnostics/warnings, and code-emission utilities; add lightweight integration harness and incremental tests to keep coverage tight during the split.
-- Add lint rule/enforcer for import ordering: builtins first, then npm/library deps, then relative paths.

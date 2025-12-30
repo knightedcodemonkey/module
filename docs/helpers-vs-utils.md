@@ -15,6 +15,7 @@
 
 - `helpers/`: identifier/name helpers.
 - `utils/`: exports collection, identifier tracking, language/specifier helpers, misc transformation utilities.
+- `pipeline/`: ordered, option-aware transformation stages (planning, lowering, prelude/emission). These mutate `MagicString` or return code slices and depend on formatter options/state. They stay separate to keep helpers/utils generic while keeping the format pipeline readable.
 
 ## Maintenance tips
 
