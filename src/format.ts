@@ -29,6 +29,7 @@ import { collectCjsExports } from './utils/exports.js'
 import { collectModuleIdentifiers } from './utils/identifiers.js'
 import { isValidUrl } from './utils/url.js'
 import { ancestorWalk } from './walk.js'
+
 const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
   node.type === 'MemberExpression' &&
   node.object.type === 'Identifier' &&
