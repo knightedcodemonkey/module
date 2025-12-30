@@ -192,15 +192,210 @@ const describeDualPackage = (pkgJson: any) => {
 
 type HazardLevel = 'warning' | 'error'
 
-type PackageUse = {
+export type PackageUse = {
   spec: string
   subpath: string
   loc?: { start: number; end: number }
+  filePath?: string
 }
 
-type PackageUsage = {
+export type PackageUsage = {
   imports: PackageUse[]
   requires: PackageUse[]
+}
+
+const recordUsage = (
+  usages: Map<string, PackageUsage>,
+  pkg: string,
+  kind: 'import' | 'require',
+  spec: string,
+  subpath: string,
+  loc?: { start: number; end: number },
+  filePath?: string,
+) => {
+  const existing = usages.get(pkg) ?? { imports: [], requires: [] }
+  const bucket = kind === 'import' ? existing.imports : existing.requires
+  bucket.push({ spec, subpath, loc, filePath })
+  usages.set(pkg, existing)
+}
+
+const collectDualPackageUsage = async (
+  program: Node,
+  shadowedBindings: Set<string>,
+  filePath?: string,
+) => {
+  const usages = new Map<string, PackageUsage>()
+
+  await ancestorWalk(program, {
+    enter(node) {
+      if (
+        node.type === 'ImportDeclaration' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          recordUsage(
+            usages,
+            pkg.pkg,
+            'import',
+            node.source.value,
+            pkg.subpath,
+            { start: node.source.start, end: node.source.end },
+            filePath,
+          )
+      }
+
+      if (
+        node.type === 'ExportNamedDeclaration' &&
+        node.source &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          recordUsage(
+            usages,
+            pkg.pkg,
+            'import',
+            node.source.value,
+            pkg.subpath,
+            { start: node.source.start, end: node.source.end },
+            filePath,
+          )
+      }
+
+      if (
+        node.type === 'ExportAllDeclaration' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          recordUsage(
+            usages,
+            pkg.pkg,
+            'import',
+            node.source.value,
+            pkg.subpath,
+            { start: node.source.start, end: node.source.end },
+            filePath,
+          )
+      }
+
+      if (
+        node.type === 'ImportExpression' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          recordUsage(
+            usages,
+            pkg.pkg,
+            'import',
+            node.source.value,
+            pkg.subpath,
+            { start: node.source.start, end: node.source.end },
+            filePath,
+          )
+      }
+
+      if (node.type === 'CallExpression' && isStaticRequire(node, shadowedBindings)) {
+        const arg = node.arguments[0]
+        if (arg?.type === 'Literal' && typeof arg.value === 'string') {
+          const pkg = packageFromSpecifier(arg.value)
+          if (pkg)
+            recordUsage(
+              usages,
+              pkg.pkg,
+              'require',
+              arg.value,
+              pkg.subpath,
+              {
+                start: arg.start,
+                end: arg.end,
+              },
+              filePath,
+            )
+        }
+      }
+    },
+  })
+
+  return usages
+}
+
+const dualPackageHazardDiagnostics = async (params: {
+  usages: Map<string, PackageUsage>
+  hazardLevel: HazardLevel
+  filePath?: string
+  cwd?: string
+  manifestCache?: Map<string, any | null>
+}) => {
+  const { usages, hazardLevel, filePath, cwd } = params
+  const manifestCache = params.manifestCache ?? new Map<string, any | null>()
+  const diags: Diagnostic[] = []
+
+  for (const [pkg, usage] of usages) {
+    const hasImport = usage.imports.length > 0
+    const hasRequire = usage.requires.length > 0
+    const combined = [...usage.imports, ...usage.requires]
+    const hasRoot = combined.some(entry => !entry.subpath)
+    const hasSubpath = combined.some(entry => Boolean(entry.subpath))
+    const origin = usage.imports[0] ?? usage.requires[0]
+    const diagFile = origin?.filePath ?? filePath
+
+    if (hasImport && hasRequire) {
+      const importSpecs = usage.imports.map(u =>
+        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      )
+      const requireSpecs = usage.requires.map(u =>
+        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      )
+
+      diags.push({
+        level: hazardLevel,
+        code: 'dual-package-mixed-specifiers',
+        message: `Package '${pkg}' is loaded via import (${importSpecs.join(', ')}) and require (${requireSpecs.join(', ')}); conditional exports can instantiate it twice.`,
+        filePath: diagFile,
+        loc: origin?.loc,
+      })
+    }
+
+    if (hasRoot && hasSubpath) {
+      const subpaths = combined
+        .filter(entry => entry.subpath)
+        .map(entry => `${pkg}/${entry.subpath}`)
+      const originSubpath = combined.find(entry => entry.subpath) ?? combined[0]
+      diags.push({
+        level: hazardLevel,
+        code: 'dual-package-subpath',
+        message: `Package '${pkg}' is referenced via root specifier '${pkg}' and subpath(s) ${subpaths.join(', ')}; mixing them loads separate module instances.`,
+        filePath: originSubpath?.filePath ?? filePath,
+        loc: originSubpath?.loc,
+      })
+    }
+
+    if (hasImport && hasRequire) {
+      const manifest = await readPackageManifest(pkg, diagFile, cwd, manifestCache)
+      if (manifest) {
+        const meta = describeDualPackage(manifest)
+        if (meta.hasHazardSignals) {
+          const detail = meta.details.length ? ` (${meta.details.join('; ')})` : ''
+          diags.push({
+            level: hazardLevel,
+            code: 'dual-package-conditional-exports',
+            message: `Package '${pkg}' exposes different entry points for import vs require${detail}. Mixed usage can produce distinct instances.`,
+            filePath: diagFile,
+            loc: origin?.loc,
+          })
+        }
+      }
+    }
+  }
+
+  return diags
 }
 
 const detectDualPackageHazards = async (params: {
@@ -217,141 +412,18 @@ const detectDualPackageHazards = async (params: {
   ) => void
 }) => {
   const { program, shadowedBindings, hazardLevel, filePath, cwd, diagOnce } = params
-  const usages = new Map<string, PackageUsage>()
   const manifestCache = new Map<string, any | null>()
-
-  const record = (
-    pkg: string,
-    kind: 'import' | 'require',
-    spec: string,
-    subpath: string,
-    loc?: { start: number; end: number },
-  ) => {
-    const existing = usages.get(pkg) ?? { imports: [], requires: [] }
-    const bucket = kind === 'import' ? existing.imports : existing.requires
-    bucket.push({ spec, subpath, loc })
-    usages.set(pkg, existing)
-  }
-
-  await ancestorWalk(program, {
-    enter(node) {
-      if (
-        node.type === 'ImportDeclaration' &&
-        node.source.type === 'Literal' &&
-        typeof node.source.value === 'string'
-      ) {
-        const pkg = packageFromSpecifier(node.source.value)
-        if (pkg)
-          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
-            start: node.source.start,
-            end: node.source.end,
-          })
-      }
-
-      if (
-        node.type === 'ExportNamedDeclaration' &&
-        node.source &&
-        node.source.type === 'Literal' &&
-        typeof node.source.value === 'string'
-      ) {
-        const pkg = packageFromSpecifier(node.source.value)
-        if (pkg)
-          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
-            start: node.source.start,
-            end: node.source.end,
-          })
-      }
-
-      if (
-        node.type === 'ExportAllDeclaration' &&
-        node.source.type === 'Literal' &&
-        typeof node.source.value === 'string'
-      ) {
-        const pkg = packageFromSpecifier(node.source.value)
-        if (pkg)
-          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
-            start: node.source.start,
-            end: node.source.end,
-          })
-      }
-
-      if (
-        node.type === 'ImportExpression' &&
-        node.source.type === 'Literal' &&
-        typeof node.source.value === 'string'
-      ) {
-        const pkg = packageFromSpecifier(node.source.value)
-        if (pkg)
-          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
-            start: node.source.start,
-            end: node.source.end,
-          })
-      }
-
-      if (node.type === 'CallExpression' && isStaticRequire(node, shadowedBindings)) {
-        const arg = node.arguments[0]
-        if (arg?.type === 'Literal' && typeof arg.value === 'string') {
-          const pkg = packageFromSpecifier(arg.value)
-          if (pkg)
-            record(pkg.pkg, 'require', arg.value, pkg.subpath, {
-              start: arg.start,
-              end: arg.end,
-            })
-        }
-      }
-    },
+  const usages = await collectDualPackageUsage(program, shadowedBindings, filePath)
+  const diags = await dualPackageHazardDiagnostics({
+    usages,
+    hazardLevel,
+    filePath,
+    cwd,
+    manifestCache,
   })
 
-  for (const [pkg, usage] of usages) {
-    const hasImport = usage.imports.length > 0
-    const hasRequire = usage.requires.length > 0
-    const combined = [...usage.imports, ...usage.requires]
-    const hasRoot = combined.some(entry => !entry.subpath)
-    const hasSubpath = combined.some(entry => Boolean(entry.subpath))
-
-    if (hasImport && hasRequire) {
-      const importSpecs = usage.imports.map(u =>
-        u.subpath ? `${pkg}/${u.subpath}` : pkg,
-      )
-      const requireSpecs = usage.requires.map(u =>
-        u.subpath ? `${pkg}/${u.subpath}` : pkg,
-      )
-
-      diagOnce(
-        hazardLevel,
-        'dual-package-mixed-specifiers',
-        `Package '${pkg}' is loaded via import (${importSpecs.join(', ')}) and require (${requireSpecs.join(', ')}); conditional exports can instantiate it twice.`,
-        usage.imports[0]?.loc ?? usage.requires[0]?.loc,
-      )
-    }
-
-    if (hasRoot && hasSubpath) {
-      const subpaths = combined
-        .filter(entry => entry.subpath)
-        .map(entry => `${pkg}/${entry.subpath}`)
-      diagOnce(
-        hazardLevel,
-        'dual-package-subpath',
-        `Package '${pkg}' is referenced via root specifier '${pkg}' and subpath(s) ${subpaths.join(', ')}; mixing them loads separate module instances.`,
-        combined.find(entry => entry.subpath)?.loc ?? combined[0]?.loc,
-      )
-    }
-
-    if (hasImport && hasRequire) {
-      const manifest = await readPackageManifest(pkg, filePath, cwd, manifestCache)
-      if (manifest) {
-        const meta = describeDualPackage(manifest)
-        if (meta.hasHazardSignals) {
-          const detail = meta.details.length ? ` (${meta.details.join('; ')})` : ''
-          diagOnce(
-            hazardLevel,
-            'dual-package-conditional-exports',
-            `Package '${pkg}' exposes different entry points for import vs require${detail}. Mixed usage can produce distinct instances.`,
-            usage.imports[0]?.loc ?? usage.requires[0]?.loc,
-          )
-        }
-      }
-    }
+  for (const diag of diags) {
+    diagOnce(diag.level, diag.code, diag.message, diag.loc)
   }
 }
 
@@ -657,4 +729,4 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   return code.toString()
 }
 
-export { format }
+export { format, collectDualPackageUsage, dualPackageHazardDiagnostics }

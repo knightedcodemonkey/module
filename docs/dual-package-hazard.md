@@ -9,6 +9,10 @@ This tool can warn or error when a file mixes specifiers that may trigger the du
   - `warn`: emit diagnostics but continue.
   - `error`: diagnostics are emitted and the transform exits non-zero.
   - `off`: skip detection.
+- `dualPackageHazardScope`: `file` (default) | `project`
+  - CLI: `--dual-package-hazard-scope` (long-only).
+  - `file`: run detection independently per file (legacy behavior).
+  - `project`: aggregate usages across all CLI inputs, then emit one diagnostic set per package. Per-file detection is disabled when this is on.
 
 ## What we detect (per file)
 
@@ -28,10 +32,16 @@ This tool can warn or error when a file mixes specifiers that may trigger the du
 
 ## What is not covered
 
-- Cross-file or whole-project graph analysis; detection is per file only.
+- Cross-file or whole-project graph analysis unless `dualPackageHazardScope: 'project'` is enabled.
 - Dynamic or template specifiers; non-literal specifiers are ignored.
 - Loader/bundler resolution differences (pnpm linking, aliases, custom conditions).
 - Exact equality of root vs subpath targets; we do not stat/resolve to see if they point to the same file, so a root/subpath warning may be conservative.
+
+## Project-wide analysis (opt-in)
+
+- Set `--dual-package-hazard-scope project` (CLI) or `dualPackageHazardScope: 'project'` (API).
+- The CLI pre-scans all input files, aggregates package usage (import vs require, root vs subpath), and emits diagnostics per package. Per-file hazard checks are turned off in this mode to avoid duplicate messages.
+- Still uses static literal specifiers and manifest reads under `node_modules`; aliasing/path-mapping differences may not be reflected.
 
 ## Guidance
 
