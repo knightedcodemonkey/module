@@ -215,6 +215,7 @@ const recordUsage = (
 ) => {
   const existing = usages.get(pkg) ?? { imports: [], requires: [] }
   const bucket = kind === 'import' ? existing.imports : existing.requires
+
   bucket.push({ spec, subpath, loc, filePath })
   usages.set(pkg, existing)
 }

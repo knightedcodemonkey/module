@@ -227,6 +227,7 @@ const mergeUsageMaps = (
 
 const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOptions) => {
   const hazardMode = opts.detectDualPackageHazard ?? 'warn'
+
   if (hazardMode === 'off') return new Map<string, Diagnostic[]>()
 
   const hazardLevel = hazardMode === 'error' ? 'error' : 'warning'
@@ -247,6 +248,7 @@ const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOpt
       shadowedBindings,
       file,
     )
+
     mergeUsageMaps(usages, perFileUsage)
   }
 
@@ -256,11 +258,12 @@ const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOpt
     cwd: opts.cwd,
     manifestCache,
   })
-
   const byFile = new Map<string, Diagnostic[]>()
+
   for (const diag of diags) {
     const key = diag.filePath ?? files[0]
     const existing = byFile.get(key) ?? []
+
     existing.push(diag)
     byFile.set(key, existing)
   }
