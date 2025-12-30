@@ -30,6 +30,7 @@ const defaultOptions: ModuleOptions = {
   importMetaMain: 'shim',
   requireMainStrategy: 'import-meta-main',
   detectCircularRequires: 'off',
+  detectDualPackageHazard: 'warn',
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
@@ -212,6 +213,12 @@ const optionsTable = [
     desc: 'Warn/error on circular require (off|warn|error)',
   },
   {
+    long: 'detect-dual-package-hazard',
+    short: 'H',
+    type: 'string',
+    desc: 'Warn/error on mixed import/require of dual packages (off|warn|error)',
+  },
+  {
     long: 'top-level-await',
     short: 'a',
     type: 'string',
@@ -382,6 +389,11 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
         values['detect-circular-requires'] as string | undefined,
         ['off', 'warn', 'error'] as const,
       ) ?? defaultOptions.detectCircularRequires,
+    detectDualPackageHazard:
+      parseEnum(
+        values['detect-dual-package-hazard'] as string | undefined,
+        ['off', 'warn', 'error'] as const,
+      ) ?? defaultOptions.detectDualPackageHazard,
     topLevelAwait:
       parseEnum(
         values['top-level-await'] as string | undefined,

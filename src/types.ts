@@ -49,6 +49,8 @@ export type ModuleOptions = {
   requireMainStrategy?: 'import-meta-main' | 'realpath'
   /** Detect circular require usage level. */
   detectCircularRequires?: 'off' | 'warn' | 'error'
+  /** Detect divergent import/require usage of the same dual package (default warn). */
+  detectDualPackageHazard?: 'off' | 'warn' | 'error'
   /** Source used to provide require in ESM output. */
   requireSource?: 'builtin' | 'create-require'
   /** How to rewrite nested or non-hoistable require calls. */

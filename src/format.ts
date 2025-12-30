@@ -1,3 +1,6 @@
+import { builtinModules } from 'node:module'
+import { dirname, join, resolve as pathResolve } from 'node:path'
+import { readFile as fsReadFile, stat as fsStat } from 'node:fs/promises'
 import type { Node, ParseResult } from 'oxc-parser'
 import MagicString from 'magic-string'
 
@@ -38,6 +41,320 @@ const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
   node.property.type === 'Identifier' &&
   node.property.name === 'main'
 
+const builtinSpecifiers = new Set<string>(
+  builtinModules
+    .map(mod => (mod.startsWith('node:') ? mod.slice(5) : mod))
+    .flatMap(mod => {
+      const parts = mod.split('/')
+      const base = parts[0]
+      return parts.length > 1 ? [mod, base] : [mod]
+    }),
+)
+
+const stripQuery = (value: string) =>
+  value.includes('?') || value.includes('#') ? (value.split(/[?#]/)[0] ?? value) : value
+
+const packageFromSpecifier = (spec: string) => {
+  const cleaned = stripQuery(spec)
+  if (!cleaned) return null
+  if (cleaned.startsWith('node:')) return null
+  if (/^(?:\.?\.?\/|\/)/.test(cleaned)) return null
+  if (/^[a-zA-Z][a-zA-Z+.-]*:/.test(cleaned)) return null
+
+  const parts = cleaned.split('/')
+
+  if (cleaned.startsWith('@')) {
+    if (parts.length < 2) return null
+    const pkg = `${parts[0]}/${parts[1]}`
+    if (builtinSpecifiers.has(pkg) || builtinSpecifiers.has(parts[1] ?? '')) return null
+    const subpath = parts.slice(2).join('/')
+    return { pkg, subpath }
+  }
+
+  const pkg = parts[0] ?? ''
+  if (!pkg || builtinSpecifiers.has(pkg)) return null
+  const subpath = parts.slice(1).join('/')
+  return { pkg, subpath }
+}
+
+const fileExists = async (filename: string) => {
+  try {
+    const stats = await fsStat(filename)
+    return stats.isFile()
+  } catch {
+    return false
+  }
+}
+
+const findPackageManifest = async (
+  pkg: string,
+  filePath: string | undefined,
+  cwd: string | undefined,
+) => {
+  const startDir = filePath
+    ? dirname(pathResolve(filePath))
+    : pathResolve(cwd ?? process.cwd())
+  const seen = new Set<string>()
+  let dir = startDir
+
+  while (!seen.has(dir)) {
+    seen.add(dir)
+    const candidate = join(dir, 'node_modules', pkg, 'package.json')
+    if (await fileExists(candidate)) return candidate
+
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+
+  return null
+}
+
+const readPackageManifest = async (
+  pkg: string,
+  filePath: string | undefined,
+  cwd: string | undefined,
+  cache: Map<string, any | null>,
+) => {
+  const start = pathResolve(filePath ? dirname(filePath) : (cwd ?? process.cwd()))
+  const cacheKey = `${pkg}@${start}`
+  if (cache.has(cacheKey)) return cache.get(cacheKey)
+
+  const manifestPath = await findPackageManifest(pkg, filePath, cwd)
+  if (!manifestPath) {
+    cache.set(cacheKey, null)
+    return null
+  }
+
+  try {
+    const raw = await fsReadFile(manifestPath, 'utf8')
+    const json = JSON.parse(raw)
+    cache.set(cacheKey, json)
+    return json
+  } catch {
+    cache.set(cacheKey, null)
+    return null
+  }
+}
+
+const analyzeExportsTargets = (exportsField: unknown) => {
+  const root =
+    exportsField && typeof exportsField === 'object' && !Array.isArray(exportsField)
+      ? // @ts-expect-error -- loose lookup of root export condition
+        (exportsField['.'] ?? exportsField)
+      : exportsField
+
+  if (typeof root === 'string') {
+    return { importTarget: root, requireTarget: root }
+  }
+
+  if (root && typeof root === 'object') {
+    const record = root as Record<string, unknown>
+    const importTarget = typeof record.import === 'string' ? record.import : undefined
+    const requireTarget = typeof record.require === 'string' ? record.require : undefined
+    const defaultTarget = typeof record.default === 'string' ? record.default : undefined
+
+    return {
+      importTarget: importTarget ?? defaultTarget,
+      requireTarget: requireTarget ?? defaultTarget,
+    }
+  }
+
+  return { importTarget: undefined, requireTarget: undefined }
+}
+
+const describeDualPackage = (pkgJson: any) => {
+  const { importTarget, requireTarget } = analyzeExportsTargets(pkgJson?.exports)
+  const moduleField = typeof pkgJson?.module === 'string' ? pkgJson.module : undefined
+  const mainField = typeof pkgJson?.main === 'string' ? pkgJson.main : undefined
+  const typeField = typeof pkgJson?.type === 'string' ? pkgJson.type : undefined
+
+  const divergentExports = importTarget && requireTarget && importTarget !== requireTarget
+  const divergentModuleMain = moduleField && mainField && moduleField !== mainField
+  const typeModuleMainCjs =
+    typeField === 'module' && typeof mainField === 'string' && mainField.endsWith('.cjs')
+
+  const hasHazardSignals = divergentExports || divergentModuleMain || typeModuleMainCjs
+
+  const details: string[] = []
+  if (divergentExports) {
+    details.push(`exports import -> ${importTarget}, require -> ${requireTarget}`)
+  }
+  if (divergentModuleMain) {
+    details.push(`module -> ${moduleField}, main -> ${mainField}`)
+  }
+  if (typeModuleMainCjs) {
+    details.push(`type: module with CommonJS main (${mainField})`)
+  }
+
+  return { hasHazardSignals, details, importTarget, requireTarget }
+}
+
+type HazardLevel = 'warning' | 'error'
+
+type PackageUse = {
+  spec: string
+  subpath: string
+  loc?: { start: number; end: number }
+}
+
+type PackageUsage = {
+  imports: PackageUse[]
+  requires: PackageUse[]
+}
+
+const detectDualPackageHazards = async (params: {
+  program: Node
+  shadowedBindings: Set<string>
+  hazardLevel: HazardLevel
+  filePath?: string
+  cwd?: string
+  diagOnce: (
+    level: HazardLevel,
+    codeId: string,
+    message: string,
+    loc?: { start: number; end: number },
+  ) => void
+}) => {
+  const { program, shadowedBindings, hazardLevel, filePath, cwd, diagOnce } = params
+  const usages = new Map<string, PackageUsage>()
+  const manifestCache = new Map<string, any | null>()
+
+  const record = (
+    pkg: string,
+    kind: 'import' | 'require',
+    spec: string,
+    subpath: string,
+    loc?: { start: number; end: number },
+  ) => {
+    const existing = usages.get(pkg) ?? { imports: [], requires: [] }
+    const bucket = kind === 'import' ? existing.imports : existing.requires
+    bucket.push({ spec, subpath, loc })
+    usages.set(pkg, existing)
+  }
+
+  await ancestorWalk(program, {
+    enter(node) {
+      if (
+        node.type === 'ImportDeclaration' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
+            start: node.source.start,
+            end: node.source.end,
+          })
+      }
+
+      if (
+        node.type === 'ExportNamedDeclaration' &&
+        node.source &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
+            start: node.source.start,
+            end: node.source.end,
+          })
+      }
+
+      if (
+        node.type === 'ExportAllDeclaration' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
+            start: node.source.start,
+            end: node.source.end,
+          })
+      }
+
+      if (
+        node.type === 'ImportExpression' &&
+        node.source.type === 'Literal' &&
+        typeof node.source.value === 'string'
+      ) {
+        const pkg = packageFromSpecifier(node.source.value)
+        if (pkg)
+          record(pkg.pkg, 'import', node.source.value, pkg.subpath, {
+            start: node.source.start,
+            end: node.source.end,
+          })
+      }
+
+      if (node.type === 'CallExpression' && isStaticRequire(node, shadowedBindings)) {
+        const arg = node.arguments[0]
+        if (arg?.type === 'Literal' && typeof arg.value === 'string') {
+          const pkg = packageFromSpecifier(arg.value)
+          if (pkg)
+            record(pkg.pkg, 'require', arg.value, pkg.subpath, {
+              start: arg.start,
+              end: arg.end,
+            })
+        }
+      }
+    },
+  })
+
+  for (const [pkg, usage] of usages) {
+    const hasImport = usage.imports.length > 0
+    const hasRequire = usage.requires.length > 0
+    const combined = [...usage.imports, ...usage.requires]
+    const hasRoot = combined.some(entry => !entry.subpath)
+    const hasSubpath = combined.some(entry => Boolean(entry.subpath))
+
+    if (hasImport && hasRequire) {
+      const importSpecs = usage.imports.map(u =>
+        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      )
+      const requireSpecs = usage.requires.map(u =>
+        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      )
+
+      diagOnce(
+        hazardLevel,
+        'dual-package-mixed-specifiers',
+        `Package '${pkg}' is loaded via import (${importSpecs.join(', ')}) and require (${requireSpecs.join(', ')}); conditional exports can instantiate it twice.`,
+        usage.imports[0]?.loc ?? usage.requires[0]?.loc,
+      )
+    }
+
+    if (hasRoot && hasSubpath) {
+      const subpaths = combined
+        .filter(entry => entry.subpath)
+        .map(entry => `${pkg}/${entry.subpath}`)
+      diagOnce(
+        hazardLevel,
+        'dual-package-subpath',
+        `Package '${pkg}' is referenced via root specifier '${pkg}' and subpath(s) ${subpaths.join(', ')}; mixing them loads separate module instances.`,
+        combined.find(entry => entry.subpath)?.loc ?? combined[0]?.loc,
+      )
+    }
+
+    if (hasImport && hasRequire) {
+      const manifest = await readPackageManifest(pkg, filePath, cwd, manifestCache)
+      if (manifest) {
+        const meta = describeDualPackage(manifest)
+        if (meta.hasHazardSignals) {
+          const detail = meta.details.length ? ` (${meta.details.join('; ')})` : ''
+          diagOnce(
+            hazardLevel,
+            'dual-package-conditional-exports',
+            `Package '${pkg}' exposes different entry points for import vs require${detail}. Mixed usage can produce distinct instances.`,
+            usage.imports[0]?.loc ?? usage.requires[0]?.loc,
+          )
+        }
+      }
+    }
+  }
+}
+
 /**
  * Node added support for import.meta.main.
  * Added in: v24.2.0, v22.18.0
@@ -67,22 +384,22 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
     // eslint-disable-next-line no-console -- used for opt-in diagnostics
     console.error(diag.message)
   }
-  const warnOnce: WarnOnce = (
+  const diagOnce = (
+    level: Diagnostic['level'],
     codeId: string,
     message: string,
     loc?: { start: number; end: number },
   ) => {
-    const key = `${codeId}:${loc?.start ?? ''}`
+    const key = `${level}:${codeId}:${loc?.start ?? ''}`
     if (warned.has(key)) return
     warned.add(key)
-    emitDiagnostic({
-      level: 'warning',
-      code: codeId,
-      message,
-      filePath: opts.filePath,
-      loc,
-    })
+    emitDiagnostic({ level, code: codeId, message, filePath: opts.filePath, loc })
   }
+  const warnOnce: WarnOnce = (
+    codeId: string,
+    message: string,
+    loc?: { start: number; end: number },
+  ) => diagOnce('warning', codeId, message, loc)
   const transformMode = opts.transformSyntax
   const fullTransform = transformMode === true
   const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
@@ -91,6 +408,19 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
       .filter(([, meta]) => meta.declare.length > 0)
       .map(([name]) => name),
   )
+
+  const hazardMode = opts.detectDualPackageHazard ?? 'warn'
+  if (hazardMode !== 'off') {
+    const hazardLevel: HazardLevel = hazardMode === 'error' ? 'error' : 'warning'
+    await detectDualPackageHazards({
+      program: ast.program,
+      shadowedBindings,
+      hazardLevel,
+      filePath: opts.filePath,
+      cwd: opts.cwd,
+      diagOnce,
+    })
+  }
 
   if (opts.target === 'module' && fullTransform) {
     if (shadowedBindings.has('module') || shadowedBindings.has('exports')) {

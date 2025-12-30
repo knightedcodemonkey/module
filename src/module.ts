@@ -220,6 +220,7 @@ const defaultOptions = {
   importMetaMain: 'shim',
   requireMainStrategy: 'import-meta-main',
   detectCircularRequires: 'off',
+  detectDualPackageHazard: 'warn',
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
