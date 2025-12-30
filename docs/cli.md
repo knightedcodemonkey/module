@@ -69,6 +69,7 @@ Short and long forms are supported.
 | -j    | --append-js-extension      | Append .js to relative imports (off \| relative-only \| all)   |
 | -i    | --append-directory-index   | Append directory index (e.g. index.js) or false                 |
 | -c    | --detect-circular-requires | Warn/error on circular require (off \| warn \| error)          |
+| -H    | --detect-dual-package-hazard | Warn/error on mixed import/require of dual packages (off \| warn \| error) |
 | -a    | --top-level-await          | TLA handling (error \| wrap \| preserve)                       |
 | -d    | --cjs-default              | Default interop (module-exports \| auto \| none)               |
 | -e    | --idiomatic-exports        | Emit idiomatic exports when safe (off \| safe \| aggressive)    |

@@ -130,6 +130,7 @@ type ModuleOptions = {
   importMetaMain?: 'shim' | 'warn' | 'error'
   requireMainStrategy?: 'import-meta-main' | 'realpath'
   detectCircularRequires?: 'off' | 'warn' | 'error'
+  detectDualPackageHazard?: 'off' | 'warn' | 'error'
   requireSource?: 'builtin' | 'create-require'
   importMetaPrelude?: 'off' | 'auto' | 'on'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
@@ -155,6 +156,7 @@ type ModuleOptions = {
 - `requireMainStrategy` (`import-meta-main`): use `import.meta.main` or the realpath-based `pathToFileURL(realpathSync(process.argv[1])).href` check.
 - `importMetaPrelude` (`auto`): emit a no-op `void import.meta.filename;` touch. `on` always emits; `off` never emits; `auto` emits only when helpers that reference `import.meta.*` are synthesized (e.g., `__dirname`/`__filename` in CJS→ESM, require-main shims, createRequire helpers). Useful for bundlers/transpilers that do usage-based `import.meta` polyfilling.
 - `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
+- `detectDualPackageHazard` (`warn`): flag when a file mixes `import` and `require` of the same package or combines root and subpath specifiers that can resolve to separate module instances (dual packages). Set to `error` to fail the transform.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
 - `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback. Precedence: the callback (if provided) runs first; if it returns a string, that wins. If it returns `undefined` or `null`, the appenders still apply.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.

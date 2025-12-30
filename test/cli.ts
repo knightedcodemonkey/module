@@ -122,6 +122,58 @@ test('--ignore excludes glob matches', async () => {
   }
 })
 
+test('-H error exits on dual package hazard', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-'))
+  const file = join(temp, 'entry.mjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'x-core',
+        version: '1.0.0',
+        exports: {
+          '.': { import: './x-core.mjs', require: './x-core.cjs' },
+          './module': './x-core.mjs',
+        },
+        main: './x-core.cjs',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    file,
+    [
+      "import { X } from 'x-core/module'",
+      "const core = require('x-core')",
+      'console.log(core, X)',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  try {
+    const result = runCli([
+      '-H',
+      'error',
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      'entry.mjs',
+    ])
+
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /dual-package-mixed-specifiers/)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
 test('rewrites __dirname for ESM TS projects (NodeNext)', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'module-cli-ts-node-next-'))
   const srcDir = join(temp, 'src')

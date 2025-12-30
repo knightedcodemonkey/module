@@ -2,9 +2,10 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { resolve, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
-import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
 
 import { transform } from '../src/module.js'
@@ -28,6 +29,116 @@ const isValidFilename = async (filename: string) => {
 }
 
 describe('@knighted/module', () => {
+  it('warns on dual package hazard by default', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-'))
+    const file = join(temp, 'entry.mjs')
+    const pkgDir = join(temp, 'node_modules', 'x-core')
+
+    await mkdir(pkgDir, { recursive: true })
+    await writeFile(
+      join(pkgDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'x-core',
+          version: '1.0.0',
+          exports: {
+            '.': { import: './x-core.mjs', require: './x-core.cjs' },
+            './module': './x-core.mjs',
+          },
+          main: './x-core.cjs',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+    await writeFile(
+      file,
+      [
+        "import { X } from 'x-core/module'",
+        "const core = require('x-core')",
+        'console.log(core, X)',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+
+    t.after(() => rm(temp, { recursive: true, force: true }))
+
+    const diagnostics: any[] = []
+    await transform(file, {
+      target: 'commonjs',
+      topLevelAwait: 'wrap',
+      diagnostics: diag => diagnostics.push(diag),
+      cwd: temp,
+    })
+
+    const codes = diagnostics.map(d => d.code)
+    assert.ok(codes.includes('dual-package-mixed-specifiers'))
+    assert.ok(codes.includes('dual-package-subpath'))
+    assert.ok(codes.includes('dual-package-conditional-exports'))
+    assert.ok(diagnostics.every(d => d.level === 'warning'))
+  })
+
+  it('warns on hazard across export forms and dynamic import', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-exports-'))
+    const file = join(temp, 'entry.mjs')
+    const pkgDir = join(temp, 'node_modules', 'x-core')
+
+    await mkdir(pkgDir, { recursive: true })
+    await writeFile(
+      join(pkgDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'x-core',
+          version: '1.1.0',
+          exports: {
+            '.': { import: './x-core.mjs', require: './x-core.cjs' },
+            './module': './x-core.mjs',
+          },
+          module: './x-core.mjs',
+          main: './x-core.cjs',
+          type: 'module',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+    await writeFile(
+      file,
+      [
+        "export * from 'x-core'",
+        "export { Y } from 'x-core/module?query'",
+        "await import('x-core/module')",
+        "const core = require('x-core')",
+        "await import('node:fs')",
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+
+    t.after(() => rm(temp, { recursive: true, force: true }))
+
+    const diagnostics: any[] = []
+    await transform(file, {
+      target: 'commonjs',
+      topLevelAwait: 'wrap',
+      diagnostics: diag => diagnostics.push(diag),
+      cwd: temp,
+    })
+
+    const codes = diagnostics.map(d => d.code)
+    assert.ok(codes.includes('dual-package-mixed-specifiers'))
+    assert.ok(codes.includes('dual-package-subpath'))
+    const conditional = diagnostics.find(
+      d => d.code === 'dual-package-conditional-exports',
+    )
+    assert.ok(conditional)
+    assert.ok(/module ->/.test(conditional!.message))
+    assert.ok(/type: module/.test(conditional!.message))
+  })
+
   it('transforms __filename', async t => {
     const result = await transform(join(fixtures, '__filename.cjs'), {
       target: 'module',
