@@ -348,11 +348,12 @@ const dualPackageHazardDiagnostics = async (params: {
     const diagFile = origin?.filePath ?? filePath
 
     if (hasImport && hasRequire) {
-      const importSpecs = usage.imports.map(u =>
-        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      const uniq = <T>(items: T[]) => [...new Set(items)]
+      const importSpecs = uniq(
+        usage.imports.map(u => (u.subpath ? `${pkg}/${u.subpath}` : pkg)),
       )
-      const requireSpecs = usage.requires.map(u =>
-        u.subpath ? `${pkg}/${u.subpath}` : pkg,
+      const requireSpecs = uniq(
+        usage.requires.map(u => (u.subpath ? `${pkg}/${u.subpath}` : pkg)),
       )
 
       diags.push({
