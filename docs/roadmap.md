@@ -21,3 +21,8 @@ Next:
 
 - Emit source maps and clearer diagnostics for transform choices.
 - Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.
+
+## Potential Breaking Changes (flag/document clearly)
+
+- Template literal specifier rewriting: skip or gate rewriting when `TemplateLiteral` has expressions to avoid touching non-static specifiers; needs opt-in or documented behavior change.
+- Cycle detection hardening: expand extensions (.ts/.tsx/.mts/.cts) and normalize/realpath paths, which may surface new cycle warnings/errors, especially on Windows or mixed TS/JS projects.
