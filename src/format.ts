@@ -1,4 +1,3 @@
-import { builtinModules } from 'node:module'
 import { dirname, join, resolve as pathResolve } from 'node:path'
 import { readFile as fsReadFile, stat as fsStat } from 'node:fs/promises'
 import type { Node, ParseResult } from 'oxc-parser'
@@ -31,6 +30,7 @@ import type { Diagnostic, ExportsMeta, FormatterOptions } from './types.js'
 import { collectCjsExports } from './utils/exports.js'
 import { collectModuleIdentifiers } from './utils/identifiers.js'
 import { isValidUrl } from './utils/url.js'
+import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 import { ancestorWalk } from './walk.js'
 
 const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
@@ -40,16 +40,6 @@ const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
   !shadowed.has('require') &&
   node.property.type === 'Identifier' &&
   node.property.name === 'main'
-
-const builtinSpecifiers = new Set<string>(
-  builtinModules
-    .map(mod => (mod.startsWith('node:') ? mod.slice(5) : mod))
-    .flatMap(mod => {
-      const parts = mod.split('/')
-      const base = parts[0]
-      return parts.length > 1 ? [mod, base] : [mod]
-    }),
-)
 
 const stripQuery = (value: string) =>
   value.includes('?') || value.includes('#') ? (value.split(/[?#]/)[0] ?? value) : value

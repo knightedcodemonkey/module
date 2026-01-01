@@ -29,6 +29,24 @@ const isValidFilename = async (filename: string) => {
 }
 
 describe('@knighted/module', () => {
+  const transformEsmToCjs = async (t: any, file: string) => {
+    const fixturePath = join(fixtures, file)
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const exportsObj = requireCjs(outFile)
+
+    return { exportsObj, result }
+  }
+
   it('warns on dual package hazard by default', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-'))
     const file = join(temp, 'entry.mjs')
@@ -137,6 +155,23 @@ describe('@knighted/module', () => {
     assert.ok(conditional)
     assert.ok(/module ->/.test(conditional!.message))
     assert.ok(/type: module/.test(conditional!.message))
+  })
+
+  it('lowers export star reexports to cjs', async t => {
+    const fixturePath = join(fixtures, 'exportAll.mjs')
+    const outFile = join(fixtures, 'exportAll.cjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    await writeFile(outFile, result)
+
+    const requireFromHere = createRequire(import.meta.url)
+    const mod = requireFromHere(outFile)
+
+    assert.equal(mod.foo, 'bar')
+    assert.equal(mod.esmodule, true)
+    assert.equal(Object.prototype.hasOwnProperty.call(mod, 'default'), false)
   })
 
   it('transforms __filename', async t => {
@@ -825,23 +860,18 @@ describe('@knighted/module', () => {
     )
   })
 
-  const transformEsmToCjs = async (t: any, file: string) => {
-    const fixturePath = join(fixtures, file)
-    const result = await transform(fixturePath, { target: 'commonjs' })
-    const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
-    const requireCjs = createRequire(import.meta.url)
+  it('detects circular requires across ts/cts files', async () => {
+    const fixturePath = join(fixtures, 'cycles', 'tsA.cts')
 
-    t.after(() => {
-      rm(outFile, { force: true })
-    })
-
-    await writeFile(outFile, result)
-    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
-    assert.equal(status, 0)
-    const exportsObj = requireCjs(outFile)
-
-    return { exportsObj, result }
-  }
+    await assert.rejects(
+      () =>
+        transform(fixturePath, {
+          target: 'module',
+          detectCircularRequires: 'error',
+        }),
+      /Circular require detected/,
+    )
+  })
 
   it('lowers side-effect import when targeting commonjs', async t => {
     const { exportsObj, result } = await transformEsmToCjs(t, 'importSideEffect.mjs')
@@ -1265,6 +1295,41 @@ describe('@knighted/module', () => {
       (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
       0,
     )
+  })
+
+  it('skips rewrites for interpolated template literals', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'templateExpr.mjs')
+    const outFile = join(specifierRoot, 'templateExpr.out.cjs')
+    const fileCjs = join(specifierRoot, 'file.cjs')
+    const tmplDir = join(specifierRoot, 'tmpl')
+    const tmplAlpha = join(tmplDir, 'alpha.js')
+
+    await mkdir(tmplDir, { recursive: true })
+    await writeFile(fileCjs, "module.exports = { value: 'file-cjs' }\n")
+    await writeFile(tmplAlpha, "module.exports = { value: 'alpha' }\n")
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      rewriteSpecifier: '.cjs',
+      rewriteTemplateLiterals: 'static-only',
+      topLevelAwait: 'wrap',
+    })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+      rm(fileCjs, { force: true })
+      rm(tmplAlpha, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.includes("import('./file.cjs')"))
+    assert.ok(result.includes("require('./file.cjs')"))
+    assert.ok(result.includes('import(`./tmpl/${section}.js`)'))
+    assert.ok(result.includes('require(`./tmpl/${section}.js`)'))
   })
 
   it('appends .js to relative specifiers when targeting module', async t => {

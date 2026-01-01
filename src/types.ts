@@ -34,6 +34,8 @@ export type ModuleOptions = {
   liveBindings?: 'strict' | 'loose' | 'off'
   /** Rewrite import specifiers (e.g. add extensions). */
   rewriteSpecifier?: RewriteSpecifier
+  /** Whether to rewrite template literals that contain expressions. Default allows rewrites; set to 'static-only' to skip interpolated templates. */
+  rewriteTemplateLiterals?: 'allow' | 'static-only'
   /** Whether to append .js to relative imports. */
   appendJsExtension?: 'off' | 'relative-only' | 'all'
   /** Add directory index (e.g. /index.js) or disable. */
