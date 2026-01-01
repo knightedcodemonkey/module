@@ -29,6 +29,24 @@ const isValidFilename = async (filename: string) => {
 }
 
 describe('@knighted/module', () => {
+  const transformEsmToCjs = async (t: any, file: string) => {
+    const fixturePath = join(fixtures, file)
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
+    const requireCjs = createRequire(import.meta.url)
+
+    t.after(() => {
+      rm(outFile, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+    const exportsObj = requireCjs(outFile)
+
+    return { exportsObj, result }
+  }
+
   it('warns on dual package hazard by default', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-'))
     const file = join(temp, 'entry.mjs')
@@ -842,35 +860,18 @@ describe('@knighted/module', () => {
     )
   })
 
-  const transformEsmToCjs = async (t: any, file: string) => {
-    const fixturePath = join(fixtures, file)
-    const result = await transform(fixturePath, { target: 'commonjs' })
-    const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
-    const requireCjs = createRequire(import.meta.url)
+  it('detects circular requires across ts/cts files', async () => {
+    const fixturePath = join(fixtures, 'cycles', 'tsA.cts')
 
-    it('detects circular requires across ts/cts files', async () => {
-      const fixturePath = join(fixtures, 'cycles', 'tsA.cts')
-
-      await assert.rejects(
-        () =>
-          transform(fixturePath, {
-            target: 'module',
-            detectCircularRequires: 'error',
-          }),
-        /Circular require detected/,
-      )
-    })
-    t.after(() => {
-      rm(outFile, { force: true })
-    })
-
-    await writeFile(outFile, result)
-    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
-    assert.equal(status, 0)
-    const exportsObj = requireCjs(outFile)
-
-    return { exportsObj, result }
-  }
+    await assert.rejects(
+      () =>
+        transform(fixturePath, {
+          target: 'module',
+          detectCircularRequires: 'error',
+        }),
+      /Circular require detected/,
+    )
+  })
 
   it('lowers side-effect import when targeting commonjs', async t => {
     const { exportsObj, result } = await transformEsmToCjs(t, 'importSideEffect.mjs')
