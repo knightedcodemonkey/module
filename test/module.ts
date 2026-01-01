@@ -139,6 +139,23 @@ describe('@knighted/module', () => {
     assert.ok(/type: module/.test(conditional!.message))
   })
 
+  it('lowers export star reexports to cjs', async t => {
+    const fixturePath = join(fixtures, 'exportAll.mjs')
+    const outFile = join(fixtures, 'exportAll.cjs')
+
+    t.after(() => rm(outFile, { force: true }))
+
+    const result = await transform(fixturePath, { target: 'commonjs' })
+    await writeFile(outFile, result)
+
+    const requireFromHere = createRequire(import.meta.url)
+    const mod = requireFromHere(outFile)
+
+    assert.equal(mod.foo, 'bar')
+    assert.equal(mod.esmodule, true)
+    assert.equal(Object.prototype.hasOwnProperty.call(mod, 'default'), false)
+  })
+
   it('transforms __filename', async t => {
     const result = await transform(join(fixtures, '__filename.cjs'), {
       target: 'module',
