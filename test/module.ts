@@ -848,6 +848,18 @@ describe('@knighted/module', () => {
     const outFile = join(fixtures, `${file.replace('.mjs', '')}.out.cjs`)
     const requireCjs = createRequire(import.meta.url)
 
+    it('detects circular requires across ts/cts files', async () => {
+      const fixturePath = join(fixtures, 'cycles', 'tsA.cts')
+
+      await assert.rejects(
+        () =>
+          transform(fixturePath, {
+            target: 'module',
+            detectCircularRequires: 'error',
+          }),
+        /Circular require detected/,
+      )
+    })
     t.after(() => {
       rm(outFile, { force: true })
     })
@@ -1282,6 +1294,41 @@ describe('@knighted/module', () => {
       (cjsResult.match(/import\.meta\.resolve\('\.\/file\.mjs'\)/g) ?? []).length,
       0,
     )
+  })
+
+  it('skips rewrites for interpolated template literals', async t => {
+    const specifierRoot = join(fixtures, 'specifier')
+    const fixturePath = join(specifierRoot, 'templateExpr.mjs')
+    const outFile = join(specifierRoot, 'templateExpr.out.cjs')
+    const fileCjs = join(specifierRoot, 'file.cjs')
+    const tmplDir = join(specifierRoot, 'tmpl')
+    const tmplAlpha = join(tmplDir, 'alpha.js')
+
+    await mkdir(tmplDir, { recursive: true })
+    await writeFile(fileCjs, "module.exports = { value: 'file-cjs' }\n")
+    await writeFile(tmplAlpha, "module.exports = { value: 'alpha' }\n")
+
+    const result = await transform(fixturePath, {
+      target: 'commonjs',
+      rewriteSpecifier: '.cjs',
+      rewriteTemplateLiterals: 'static-only',
+      topLevelAwait: 'wrap',
+    })
+
+    t.after(() => {
+      rm(outFile, { force: true })
+      rm(fileCjs, { force: true })
+      rm(tmplAlpha, { force: true })
+    })
+
+    await writeFile(outFile, result)
+    const { status } = spawnSync('node', [outFile], { stdio: 'inherit' })
+    assert.equal(status, 0)
+
+    assert.ok(result.includes("import('./file.cjs')"))
+    assert.ok(result.includes("require('./file.cjs')"))
+    assert.ok(result.includes('import(`./tmpl/${section}.js`)'))
+    assert.ok(result.includes('require(`./tmpl/${section}.js`)'))
   })
 
   it('appends .js to relative specifiers when targeting module', async t => {

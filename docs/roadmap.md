@@ -24,5 +24,5 @@ Next:
 
 ## Potential Breaking Changes (flag/document clearly)
 
-- Template literal specifier rewriting: skip or gate rewriting when `TemplateLiteral` has expressions to avoid touching non-static specifiers; needs opt-in or documented behavior change.
-- Cycle detection hardening: expand extensions (.ts/.tsx/.mts/.cts) and normalize/realpath paths, which may surface new cycle warnings/errors, especially on Windows or mixed TS/JS projects.
+- Template literal specifier rewriting: if we ever default to skipping interpolated `TemplateLiteral` specifiers, it would change outputs. Current implementation is opt-in via `rewriteTemplateLiterals: 'static-only'` (non-breaking); future default flips would need a major/minor note.
+- Cycle detection hardening: expanding extensions (.ts/.tsx/.mts/.cts) and normalize/realpath paths may surface new cycle warnings/errors, especially on Windows or mixed TS/JS projects.

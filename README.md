@@ -125,6 +125,7 @@ type ModuleOptions = {
     | '.mts'
     | '.cts'
     | ((value: string) => string | null | undefined)
+  rewriteTemplateLiterals?: 'allow' | 'static-only'
   dirFilename?: 'inject' | 'preserve' | 'error'
   importMeta?: 'preserve' | 'shim' | 'error'
   importMetaMain?: 'shim' | 'warn' | 'error'
@@ -151,6 +152,7 @@ type ModuleOptions = {
 - `appendJsExtension` (`relative-only` when targeting ESM): append `.js` to relative specifiers; never touches bare specifiers.
 - `appendDirectoryIndex` (`index.js`): when a relative specifier ends with a slash, append this index filename (set `false` to disable).
 - `appenders` precedence: `rewriteSpecifier` runs first; if it returns a string, that result is used. If it returns `undefined` or `null`, `appendJsExtension` and `appendDirectoryIndex` still run. Bare specifiers are never modified by appenders.
+- `rewriteTemplateLiterals` (`allow`): when `static-only`, interpolated template literals are left untouched by specifier rewriting; string literals and non-interpolated templates still rewrite.
 - `dirFilename` (`inject`): inject `__dirname`/`__filename`, preserve existing, or throw.
 - `importMeta` (`shim`): rewrite `import.meta.*` to CommonJS equivalents.
 - `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
@@ -159,7 +161,7 @@ type ModuleOptions = {
 - `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
 - `detectDualPackageHazard` (`warn`): flag when `import` and `require` mix for the same package or root/subpath are combined in ways that can resolve to separate module instances (dual packages). Set to `error` to fail the transform.
 - `dualPackageHazardScope` (`file`): `file` preserves the legacy per-file detector; `project` aggregates package usage across all CLI inputs (useful in monorepos/hoisted installs) and emits one diagnostic per package.
-- `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output.
+- `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output. `wrap` runs the file body inside an async IIFE (exports may resolve after the initial tick); `preserve` leaves `await` at top level, which Node will reject for CJS.
 - `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback. Precedence: the callback (if provided) runs first; if it returns a string, that wins. If it returns `undefined` or `null`, the appenders still apply.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.

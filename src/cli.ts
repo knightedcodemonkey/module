@@ -7,8 +7,9 @@ import {
 import { parseArgs } from 'node:util'
 import { readFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve, relative, join } from 'node:path'
-import { builtinModules } from 'node:module'
 import { glob } from 'glob'
+
+import type { TemplateLiteral } from '@oxc-project/types'
 
 import { transform, collectProjectDualPackageHazards } from './module.js'
 import { parse } from './parse.js'
@@ -16,6 +17,7 @@ import { format } from './format.js'
 import { specifier } from './specifier.js'
 import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions, Diagnostic } from './types.js'
+import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 
 const defaultOptions: ModuleOptions = {
   target: 'commonjs',
@@ -23,6 +25,7 @@ const defaultOptions: ModuleOptions = {
   transformSyntax: true,
   liveBindings: 'strict',
   rewriteSpecifier: undefined,
+  rewriteTemplateLiterals: 'allow',
   appendJsExtension: undefined,
   appendDirectoryIndex: 'index.js',
   dirFilename: 'inject',
@@ -108,16 +111,6 @@ const colorize = (enabled: boolean) => {
   }
 }
 
-const builtinSpecifiers = new Set<string>(
-  builtinModules
-    .map(mod => (mod.startsWith('node:') ? mod.slice(5) : mod))
-    .flatMap(mod => {
-      const parts = mod.split('/')
-      const base = parts[0]
-      return parts.length > 1 ? [mod, base] : [mod]
-    }),
-)
-
 const collapseSpecifier = (value: string) => value.replace(/['"`+)\s]|new String\(/g, '')
 
 const appendExtensionIfNeeded = (
@@ -194,6 +187,12 @@ const optionsTable = [
     short: 'r',
     type: 'string',
     desc: 'Rewrite import specifiers (.js/.mjs/.cjs/.ts/.mts/.cts)',
+  },
+  {
+    long: 'rewrite-template-literals',
+    short: undefined,
+    type: 'string',
+    desc: 'Rewrite template literals (allow|static-only)',
   },
   {
     long: 'append-js-extension',
@@ -377,6 +376,11 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
   const transformSyntax = parseTransformSyntax(
     values['transform-syntax'] as string | undefined,
   )
+  const rewriteTemplateLiterals =
+    parseEnum(
+      values['rewrite-template-literals'] as string | undefined,
+      ['allow', 'static-only'] as const,
+    ) ?? defaultOptions.rewriteTemplateLiterals
   const appendJsExtension = parseEnum(
     values['append-js-extension'] as string | undefined,
     ['off', 'relative-only', 'all'] as const,
@@ -391,6 +395,7 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
     transformSyntax,
     rewriteSpecifier:
       (values['rewrite-specifier'] as ModuleOptions['rewriteSpecifier']) ?? undefined,
+    rewriteTemplateLiterals,
     appendJsExtension: appendJsExtension,
     appendDirectoryIndex,
     detectCircularRequires:
@@ -513,6 +518,13 @@ const applySpecifierUpdates = async (
 
   const lang = getLangFromExt(filename)
   const updated = await specifier.updateSrc(source, lang, spec => {
+    if (
+      spec.type === 'TemplateLiteral' &&
+      opts.rewriteTemplateLiterals === 'static-only'
+    ) {
+      const node = spec.node as TemplateLiteral
+      if (node.expressions.length > 0) return
+    }
     const normalized = normalizeBuiltinSpecifier(spec.value)
     const rewritten = rewriteSpecifierValue(
       normalized ?? spec.value,

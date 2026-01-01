@@ -638,6 +638,33 @@ test('rewrites specifiers with --rewrite-specifier', () => {
   assert.match(result.stdout, /\.\/foo\.js'/)
 })
 
+test('--rewrite-template-literals guards interpolated templates', () => {
+  const source = [
+    "const side = 'alpha'",
+    "import './file.ts'",
+    'import(`./tmpl/${side}.ts`)',
+    '',
+  ].join('\n')
+
+  const result = runCli(
+    [
+      '--target',
+      'module',
+      '--stdin-filename',
+      'input.mjs',
+      '--rewrite-specifier',
+      '.js',
+      '--rewrite-template-literals',
+      'static-only',
+    ],
+    source,
+  )
+
+  assert.equal(result.status, 0)
+  assert.ok(result.stdout.includes("import './file.js'"))
+  assert.ok(result.stdout.includes('import(`./tmpl/${side}.ts`)'))
+})
+
 test('help example: out-dir mirror', async t => {
   const temp = await mkdtemp(join(tmpdir(), 'module-cli-'))
   const srcDir = join(temp, 'src')

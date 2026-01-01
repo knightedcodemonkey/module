@@ -14,27 +14,17 @@ import {
 } from './format.js'
 import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions, Diagnostic } from './types.js'
-import { builtinModules } from 'node:module'
 import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
-import { readFile as fsReadFile, stat } from 'node:fs/promises'
+import { readFile as fsReadFile, stat, realpath } from 'node:fs/promises'
 import { parse as parseModule } from './parse.js'
 import { walk } from './walk.js'
 import { collectModuleIdentifiers } from './utils/identifiers.js'
+import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 
 type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>
 
 const collapseSpecifier = (value: string) => value.replace(/['"`+)\s]|new String\(/g, '')
-
-const builtinSpecifiers = new Set<string>(
-  builtinModules
-    .map(mod => (mod.startsWith('node:') ? mod.slice(5) : mod))
-    .flatMap(mod => {
-      const parts = mod.split('/')
-      const base = parts[0]
-      return parts.length > 1 ? [mod, base] : [mod]
-    }),
-)
 
 const appendExtensionIfNeeded = (
   spec: Spec,
@@ -118,6 +108,8 @@ const fileExists = async (candidate: string) => {
   }
 }
 
+const normalizePath = async (p: string) => pathResolve(await realpath(p).catch(() => p))
+
 const resolveRequirePath = async (fromFile: string, spec: string, dirIndex: string) => {
   if (!spec.startsWith('./') && !spec.startsWith('../')) return null
   const base = pathResolve(pathDirname(fromFile), spec)
@@ -127,12 +119,19 @@ const resolveRequirePath = async (fromFile: string, spec: string, dirIndex: stri
   if (ext) {
     candidates.push(base)
   } else {
-    candidates.push(`${base}.js`, `${base}.cjs`, `${base}.mjs`)
+    candidates.push(
+      `${base}.js`,
+      `${base}.cjs`,
+      `${base}.mjs`,
+      `${base}.ts`,
+      `${base}.mts`,
+      `${base}.cts`,
+    )
     candidates.push(join(base, dirIndex))
   }
 
   for (const candidate of candidates) {
-    if (await fileExists(candidate)) return candidate
+    if (await fileExists(candidate)) return await normalizePath(candidate)
   }
 
   return null
@@ -180,8 +179,10 @@ const detectCircularRequireGraph = async (
   const visited = new Set<string>()
 
   const dfs = async (file: string, stack: string[]) => {
-    if (visiting.has(file)) {
-      const cycle = [...stack, file]
+    const normalized = await normalizePath(file)
+
+    if (visiting.has(normalized)) {
+      const cycle = [...stack, normalized]
       const msg = `Circular require detected: ${cycle.join(' -> ')}`
       if (mode === 'error') {
         throw new Error(msg)
@@ -191,14 +192,14 @@ const detectCircularRequireGraph = async (
       return
     }
 
-    if (visited.has(file)) return
-    visiting.add(file)
-    stack.push(file)
+    if (visited.has(normalized)) return
+    visiting.add(normalized)
+    stack.push(normalized)
 
-    let deps = cache.get(file)
+    let deps = cache.get(normalized)
     if (!deps) {
-      deps = await collectStaticRequires(file, dirIndex)
-      cache.set(file, deps)
+      deps = await collectStaticRequires(normalized, dirIndex)
+      cache.set(normalized, deps)
     }
 
     for (const dep of deps) {
@@ -206,11 +207,11 @@ const detectCircularRequireGraph = async (
     }
 
     stack.pop()
-    visiting.delete(file)
-    visited.add(file)
+    visiting.delete(normalized)
+    visited.add(normalized)
   }
 
-  await dfs(entryFile, [])
+  await dfs(await normalizePath(entryFile), [])
 }
 
 const mergeUsageMaps = (
@@ -271,12 +272,13 @@ const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOpt
   return byFile
 }
 
-const defaultOptions = {
+const createDefaultOptions = (): ModuleOptions => ({
   target: 'commonjs',
   sourceType: 'auto',
   transformSyntax: true,
   liveBindings: 'strict',
   rewriteSpecifier: undefined,
+  rewriteTemplateLiterals: 'allow',
   appendJsExtension: undefined,
   appendDirectoryIndex: 'index.js',
   dirFilename: 'inject',
@@ -295,9 +297,12 @@ const defaultOptions = {
   cwd: undefined,
   out: undefined,
   inPlace: false,
-} satisfies ModuleOptions
-const transform = async (filename: string, options: ModuleOptions = defaultOptions) => {
-  const opts = { ...defaultOptions, ...options, filePath: filename }
+})
+const transform = async (filename: string, options?: ModuleOptions) => {
+  const base = createDefaultOptions()
+  const opts = options
+    ? { ...base, ...options, filePath: filename }
+    : { ...base, filePath: filename }
   const cwdBase = opts.cwd ? resolve(opts.cwd) : process.cwd()
   const appendMode: AppendJsExtensionMode =
     options?.appendJsExtension ?? (opts.target === 'module' ? 'relative-only' : 'off')
@@ -311,6 +316,13 @@ const transform = async (filename: string, options: ModuleOptions = defaultOptio
 
   if (opts.rewriteSpecifier || appendMode !== 'off' || dirIndex) {
     const code = await specifier.updateSrc(source, getLangFromExt(filename), spec => {
+      if (
+        spec.type === 'TemplateLiteral' &&
+        opts.rewriteTemplateLiterals === 'static-only'
+      ) {
+        const node = spec.node as TemplateLiteral
+        if (node.expressions.length > 0) return
+      }
       const normalized = normalizeBuiltinSpecifier(spec.value)
       const rewritten = rewriteSpecifierValue(
         normalized ?? spec.value,
