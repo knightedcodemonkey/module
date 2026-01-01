@@ -4,17 +4,12 @@ Status: draft
 
 ## Idiomatic Exports
 
-Shipped: `idiomaticExports: 'safe'` is now the default for CJS → ESM, with fallback to the helper bag plus diagnostics when unsafe. Auto lifts simple `module.exports = { foo, bar }` object literals to idiomatic exports when safe.
-
-Next:
-
 - Explore a true `'aggressive'` mode (mixed exports/module.exports, limited reassignments, identifier-safe computed keys) with guarded semantics and explicit diagnostics.
 - Consider a constrained ESM → CJS “pretty” path where live-binding and TLA semantics permit it.
 
 ## CLI
 
-- Shipped parity CLI wrapping the core transform (targets, rewriteSpecifier, appendJsExtension/appendDirectoryIndex, detectCircularRequires, topLevelAwait, cjsDefault, diagnostics hooks, out/in-place) with stdin/stdout support, JSON/summary, and list/dry-run paths.
-- Next: optional concurrency flag, `--watch` mode with minimal restarts, and a tiny stream type surface to keep test stubs and embedding clean.
+- Optional concurrency flag, `--watch` mode with minimal restarts, and a tiny stream type surface to keep test stubs and embedding clean.
 - DX polish: keep help/examples in sync with tests; retain single-fixture CLI coverage unless new CLI-specific behaviors emerge (e.g., multi-ext glob ordering, large-input streaming), since transform semantics are already exercised in module fixtures.
 
 ## Tooling & Diagnostics
@@ -24,5 +19,5 @@ Next:
 
 ## Potential Breaking Changes (flag/document clearly)
 
-- Template literal specifier rewriting: if we ever default to skipping interpolated `TemplateLiteral` specifiers, it would change outputs. Current implementation is opt-in via `rewriteTemplateLiterals: 'static-only'` (non-breaking); future default flips would need a major/minor note.
-- Cycle detection hardening: expanding extensions (.ts/.tsx/.mts/.cts) and normalize/realpath paths may surface new cycle warnings/errors, especially on Windows or mixed TS/JS projects.
+- Template literal specifier rewriting: changing the default to skip interpolated template literals would be breaking.
+- Cycle detection hardening: expanding scope (e.g., configurable roots, glob exclusions, or additional extensions) could alter diagnostics and should be flagged.

@@ -158,7 +158,7 @@ type ModuleOptions = {
 - `importMetaMain` (`shim`): gate `import.meta.main` with shimming/warning/error when Node support is too old.
 - `requireMainStrategy` (`import-meta-main`): use `import.meta.main` or the realpath-based `pathToFileURL(realpathSync(process.argv[1])).href` check.
 - `importMetaPrelude` (`auto`): emit a no-op `void import.meta.filename;` touch. `on` always emits; `off` never emits; `auto` emits only when helpers that reference `import.meta.*` are synthesized (e.g., `__dirname`/`__filename` in CJS→ESM, require-main shims, createRequire helpers). Useful for bundlers/transpilers that do usage-based `import.meta` polyfilling.
-- `detectCircularRequires` (`off`): optionally detect relative static require cycles and warn/throw.
+- `detectCircularRequires` (`off`): optionally detect relative static require cycles across `.js`/`.mjs`/`.cjs`/`.ts`/`.mts`/`.cts` (realpath-normalized) and warn/throw.
 - `detectDualPackageHazard` (`warn`): flag when `import` and `require` mix for the same package or root/subpath are combined in ways that can resolve to separate module instances (dual packages). Set to `error` to fail the transform.
 - `dualPackageHazardScope` (`file`): `file` preserves the legacy per-file detector; `project` aggregates package usage across all CLI inputs (useful in monorepos/hoisted installs) and emits one diagnostic per package.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output. `wrap` runs the file body inside an async IIFE (exports may resolve after the initial tick); `preserve` leaves `await` at top level, which Node will reject for CJS.
