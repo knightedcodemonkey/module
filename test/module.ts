@@ -1097,7 +1097,12 @@ describe('@knighted/module', () => {
     assert.equal(status, 0)
     const mod = requireCjs(outFile)
 
-    await delay(10)
+    /**
+     * In preserve mode the async body runs in an IIFE; require() returns before it resolves.
+     * Wait once for the event loop tick that resolves the TLA before asserting.
+     */
+    await new Promise(resolve => setTimeout(resolve, 50))
+
     assert.equal(mod.value, 5)
     assert.equal(mod.default, 3)
   })
