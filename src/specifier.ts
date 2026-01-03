@@ -45,6 +45,12 @@ type SpecifierApi = {
     lang: ParserOptions['lang'],
     callback: Callback,
   ) => Promise<string>
+  updateMagicString: (
+    code: MagicString,
+    src: string,
+    ast: ParseResult,
+    callback: Callback,
+  ) => Promise<MagicString>
 }
 
 const isStringLiteral = (node: Node): node is StringLiteral => {
@@ -60,8 +66,12 @@ const isCallExpression = (node: Node): node is CallExpression => {
   return node.type === 'CallExpression' && node.callee !== undefined
 }
 
-const formatSpecifiers = async (src: string, ast: ParseResult, cb: Callback) => {
-  const code = new MagicString(src)
+const formatSpecifiers = async (
+  src: string,
+  ast: ParseResult,
+  cb: Callback,
+  code: MagicString = new MagicString(src),
+) => {
   const formatExpression = (expression: ImportExpression | CallExpression) => {
     const node = isCallExpression(expression)
       ? expression.arguments[0]
@@ -278,7 +288,7 @@ const formatSpecifiers = async (src: string, ast: ParseResult, cb: Callback) => 
     },
   })
 
-  return code.toString()
+  return code
 }
 
 const isValidFilename = async (filename: string) => {
@@ -309,7 +319,9 @@ const specifier = {
     const src = (await readFile(filename)).toString()
     const ast = parseSync(filename, src)
 
-    return await formatSpecifiers(src, ast, callback)
+    const code = await formatSpecifiers(src, ast, callback)
+
+    return code.toString()
   },
 
   async updateSrc(src: string, lang: ParserOptions['lang'], callback: Callback) {
@@ -323,7 +335,20 @@ const specifier = {
             : 'file.jsx'
     const ast = parseSync(filename, src)
 
-    return await formatSpecifiers(src, ast, callback)
+    const code = await formatSpecifiers(src, ast, callback)
+
+    return code.toString()
+  },
+
+  async updateMagicString(
+    code: MagicString,
+    src: string,
+    ast: ParseResult,
+    callback: Callback,
+  ) {
+    await formatSpecifiers(src, ast, callback, code)
+
+    return code
   },
 } satisfies SpecifierApi
 

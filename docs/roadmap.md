@@ -14,7 +14,6 @@ Status: draft
 
 ## Tooling & Diagnostics
 
-- Emit source maps and clearer diagnostics for transform choices.
 - Benchmark scope analysis choices: compare `periscopic`, `scope-analyzer`, and `eslint-scope` on fixtures and pick the final adapter.
 
 ## Potential Breaking Changes (flag/document clearly)

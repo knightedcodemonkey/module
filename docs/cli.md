@@ -75,6 +75,7 @@ Short and long forms are supported.
 | -d    | --cjs-default              | Default interop (module-exports \| auto \| none)               |
 | -e    | --idiomatic-exports        | Emit idiomatic exports when safe (off \| safe \| aggressive)    |
 | -m    | --import-meta-prelude      | Emit import.meta prelude (off \| auto \| on)                   |
+|       | --source-map               | Emit a source map (sidecar); use --source-map=inline for stdout |
 | -n    | --nested-require-strategy  | Rewrite nested require (create-require \| dynamic-import)      |
 | -R    | --require-main-strategy    | Detect main (import-meta-main \| realpath)                      |
 | -l    | --live-bindings            | Live binding strategy (strict \| loose \| off)                 |

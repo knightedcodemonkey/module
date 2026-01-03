@@ -419,12 +419,13 @@ const detectDualPackageHazards = async (params: {
   }
 }
 
-/**
- * Node added support for import.meta.main.
- * Added in: v24.2.0, v22.18.0
- * @see https://nodejs.org/api/esm.html#importmetamain
- */
-const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => {
+function format(
+  src: string,
+  ast: ParseResult,
+  opts: FormatterOptions & { sourceMap: true },
+): Promise<MagicString>
+function format(src: string, ast: ParseResult, opts: FormatterOptions): Promise<string>
+async function format(src: string, ast: ParseResult, opts: FormatterOptions) {
   const code = new MagicString(src)
   const exportsMeta = {
     hasExportsBeenReassigned: false,
@@ -706,19 +707,22 @@ const format = async (src: string, ast: ParseResult, opts: FormatterOptions) => 
   }
 
   if (opts.target === 'commonjs' && fullTransform && containsTopLevelAwait) {
-    const body = code.toString()
-
     if (opts.topLevelAwait === 'wrap') {
-      const tlaPromise = `const __tla = (async () => {\n${body}\nreturn module.exports;\n})();\n`
-      const setPromise = `const __setTla = target => {\n  if (!target) return;\n  const type = typeof target;\n  if (type !== 'object' && type !== 'function') return;\n  target.__tla = __tla;\n};\n`
-      const attach = `__setTla(module.exports);\n__tla.then(resolved => __setTla(resolved), err => { throw err; });\n`
-      return `${tlaPromise}${setPromise}${attach}`
+      code.prepend('const __tla = (async () => {\n')
+      code.append('\nreturn module.exports;\n})();\n')
+      code.append(
+        'const __setTla = target => {\n  if (!target) return;\n  const type = typeof target;\n  if (type !== "object" && type !== "function") return;\n  target.__tla = __tla;\n};\n',
+      )
+      code.append(
+        '__setTla(module.exports);\n__tla.then(resolved => __setTla(resolved), err => { throw err; });\n',
+      )
+    } else {
+      code.prepend(';(async () => {\n')
+      code.append('\n})();\n')
     }
-
-    return `;(async () => {\n${body}\n})();\n`
   }
 
-  return code.toString()
+  return opts.sourceMap ? code : code.toString()
 }
 
 export { format, collectDualPackageUsage, dualPackageHazardDiagnostics }
