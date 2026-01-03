@@ -736,7 +736,7 @@ test('--source-map writes map files with out-dir', async t => {
   assert.match(written, /sourceMappingURL=entry.cjs.map/)
 
   const map = JSON.parse(await readFile(mapFile, 'utf8'))
-  assert.equal(map.file, 'entry.cjs.map')
+  assert.equal(map.file, 'entry.cjs')
   assert.ok((map.sources ?? []).some((s: string) => s.endsWith('entry.cjs')))
   assert.ok(String(map.mappings || '').length > 0)
 })

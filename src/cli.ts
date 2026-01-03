@@ -472,16 +472,28 @@ const readStdin = async (stdin: typeof defaultStdin) => {
 
 const normalizeSourceMapArgv = (argv: string[]) => {
   let sourceMapInline = false
+  let invalidSourceMapValue: string | null = null
   const normalized: string[] = []
+  const recordInvalid = (value: string) => {
+    if (!invalidSourceMapValue) invalidSourceMapValue = value
+  }
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
 
-    if (arg === '--source-map' && argv[i + 1] === 'inline') {
-      sourceMapInline = true
-      normalized.push('--source-map')
-      i += 1
-      continue
+    if (arg === '--source-map') {
+      const next = argv[i + 1]
+      if (next === 'inline') {
+        sourceMapInline = true
+        normalized.push('--source-map')
+        i += 1
+        continue
+      }
+      if (next === 'true' || next === 'false') {
+        normalized.push(`--source-map=${next}`)
+        i += 1
+        continue
+      }
     }
 
     if (arg.startsWith('--source-map=')) {
@@ -491,12 +503,23 @@ const normalizeSourceMapArgv = (argv: string[]) => {
         normalized.push('--source-map')
         continue
       }
+      if (value === 'true' || value === 'false') {
+        normalized.push(arg)
+        continue
+      }
+      recordInvalid(value)
+      continue
+    }
+
+    if (arg === '--source-map' && argv[i + 1] && argv[i + 1].startsWith('--')) {
+      normalized.push('--source-map')
+      continue
     }
 
     normalized.push(arg)
   }
 
-  return { argv: normalized, sourceMapInline }
+  return { argv: normalized, sourceMapInline, invalidSourceMapValue }
 }
 
 const expandFiles = async (patterns: string[], cwd: string, ignore?: string[]) => {
@@ -642,8 +665,11 @@ const runFiles = async (
         hazardScope === 'project' ? 'off' : moduleOpts.detectDualPackageHazard,
     }
 
+    const allowWrites = !flags.dryRun && !flags.list
+    const writeInPlace = allowWrites && flags.inPlace
     let writeTarget: string | undefined
-    if (!flags.dryRun && !flags.list) {
+
+    if (allowWrites) {
       if (flags.inPlace) {
         perFileOpts.inPlace = true
       } else if (outPath) {
@@ -654,6 +680,11 @@ const runFiles = async (
         logger.error('Specify --out-dir or --in-place when transforming files')
         return { code: 2, results }
       }
+    }
+
+    if (moduleOpts.sourceMap && (writeTarget || writeInPlace)) {
+      perFileOpts.out = undefined
+      perFileOpts.inPlace = false
     }
 
     const transformed = await transform(file, perFileOpts)
@@ -671,25 +702,26 @@ const runFiles = async (
       logger.info(file)
     }
 
-    if (map && flags.sourceMapInline && !writeTarget && !perFileOpts.inPlace) {
+    if (map && flags.sourceMapInline && !writeTarget && !writeInPlace) {
       const mapUri = Buffer.from(JSON.stringify(map)).toString('base64')
       finalOutput = `${output.replace(/\/\/# sourceMappingURL=.*/g, '').trimEnd()}\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,${mapUri}\n`
-    } else if (map && (writeTarget || perFileOpts.inPlace)) {
+    } else if (map && (writeTarget || writeInPlace)) {
       const target = writeTarget ?? file
       const mapPath = `${target}.map`
-      map.file = basename(mapPath)
+      const mapFile = basename(mapPath)
+      map.file = basename(target)
 
-      const updated = `${output.replace(/\/\/# sourceMappingURL=.*/g, '').trimEnd()}\n//# sourceMappingURL=${map.file}\n`
+      const updated = `${output.replace(/\/\/# sourceMappingURL=.*/g, '').trimEnd()}\n//# sourceMappingURL=${mapFile}\n`
       await writeFile(mapPath, JSON.stringify(map))
 
       if (writeTarget) {
         await writeFile(writeTarget, updated)
-      } else if (perFileOpts.inPlace) {
+      } else if (writeInPlace) {
         await writeFile(file, updated)
       }
     }
 
-    if (!flags.dryRun && !flags.list && !writeTarget && !perFileOpts.inPlace) {
+    if (!flags.dryRun && !flags.list && !writeTarget && !writeInPlace) {
       io.stdout.write(finalOutput)
     }
 
@@ -723,7 +755,17 @@ const runCli = async ({
   stdout = defaultStdout,
   stderr = defaultStderr,
 }: CliOptions = {}) => {
-  const { argv: normalizedArgv, sourceMapInline } = normalizeSourceMapArgv(argv)
+  const logger = makeLogger(stdout, stderr)
+  const {
+    argv: normalizedArgv,
+    sourceMapInline,
+    invalidSourceMapValue,
+  } = normalizeSourceMapArgv(argv)
+
+  if (invalidSourceMapValue) {
+    logger.error(`Invalid --source-map value: ${invalidSourceMapValue}`)
+    return 2
+  }
 
   const { values, positionals } = parseArgs({
     args: normalizedArgv,
@@ -738,8 +780,6 @@ const runCli = async ({
       ]),
     ),
   })
-
-  const logger = makeLogger(stdout, stderr)
 
   if (values.help) {
     stdout.write(buildHelp(stdout.isTTY ?? false))
