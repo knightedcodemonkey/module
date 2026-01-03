@@ -23,6 +23,8 @@ export type ModuleOptions = {
   target: 'module' | 'commonjs'
   /** Explicit source type; auto infers from file extension. */
   sourceType?: 'auto' | 'module' | 'commonjs'
+  /** Emit a source map alongside the transformed code. */
+  sourceMap?: boolean
   /**
    * Enable syntax transforms beyond parsing.
    * - true: full CJS↔ESM lowering/raising

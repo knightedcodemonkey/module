@@ -47,6 +47,25 @@ describe('@knighted/module', () => {
     return { exportsObj, result }
   }
 
+  it('returns code and source map when requested', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'module-sourcemap-'))
+    const file = join(temp, 'entry.ts')
+
+    await writeFile(file, 'export const answer: number = 41 + 1\n', 'utf8')
+
+    t.after(() => rm(temp, { recursive: true, force: true }))
+
+    const result = await transform(file, { target: 'commonjs', sourceMap: true })
+
+    assert.ok(typeof result !== 'string', 'expected {code,map} when sourceMap is true')
+    const { code, map } = result
+    assert.equal(typeof code, 'string')
+    assert.ok(map)
+    assert.equal(map.version, 3)
+    assert.ok((map.sources ?? []).length > 0)
+    assert.ok(String(map.mappings || '').length > 0)
+  })
+
   it('warns on dual package hazard by default', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-'))
     const file = join(temp, 'entry.mjs')

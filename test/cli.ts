@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { Buffer } from 'node:buffer'
 import { resolve, join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -690,6 +691,83 @@ test('help example: out-dir mirror', async t => {
   const written = await readFile(outFile, 'utf8')
   assert.equal(written, expected)
   await runCodeInNode(written, { type: 'module' })
+})
+
+test('--source-map=inline writes inline map to stdout', () => {
+  const result = runCli(['--target', 'module', '--source-map=inline', fixtureRel])
+
+  assert.equal(result.status, 0)
+  const match =
+    /sourceMappingURL=data:application\/json;charset=utf-8;base64,([^\n]+)/.exec(
+      result.stdout,
+    )
+  assert.ok(match)
+  const map = JSON.parse(Buffer.from(match?.[1] ?? '', 'base64').toString('utf8'))
+  assert.equal(map.version, 3)
+  assert.ok((map.sources ?? []).length > 0)
+})
+
+test('--source-map writes map files with out-dir', async t => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-sourcemap-'))
+  const input = join(temp, 'entry.cjs')
+  await copyFile(fixture, input)
+
+  t.after(() => rm(temp, { recursive: true, force: true }))
+
+  const result = runCli(
+    [
+      '--target',
+      'module',
+      '--source-map',
+      '--cwd',
+      temp,
+      '--out-dir',
+      'dist',
+      'entry.cjs',
+    ],
+    undefined,
+    { cwd: temp },
+  )
+
+  assert.equal(result.status, 0)
+  const outFile = join(temp, 'dist', 'entry.cjs')
+  const mapFile = `${outFile}.map`
+  const written = await readFile(outFile, 'utf8')
+  assert.match(written, /sourceMappingURL=entry.cjs.map/)
+
+  const map = JSON.parse(await readFile(mapFile, 'utf8'))
+  assert.equal(map.file, 'entry.cjs.map')
+  assert.ok((map.sources ?? []).some((s: string) => s.endsWith('entry.cjs')))
+  assert.ok(String(map.mappings || '').length > 0)
+})
+
+test('--source-map=inline errors when targeting files', async t => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-sourcemap-inline-file-'))
+  const input = join(temp, 'entry.cjs')
+  await copyFile(fixture, input)
+
+  t.after(() => rm(temp, { recursive: true, force: true }))
+
+  const result = runCli(
+    [
+      '--target',
+      'module',
+      '--source-map=inline',
+      '--cwd',
+      temp,
+      '--out-dir',
+      'dist',
+      'entry.cjs',
+    ],
+    undefined,
+    { cwd: temp },
+  )
+
+  assert.equal(result.status, 2)
+  assert.match(
+    result.stderr,
+    /Inline source maps are only supported when writing to stdout/,
+  )
 })
 
 test('--in-place rewrites files', async t => {

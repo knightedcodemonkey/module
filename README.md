@@ -114,6 +114,7 @@ type ModuleOptions = {
   target: 'module' | 'commonjs'
   sourceType?: 'auto' | 'module' | 'commonjs'
   transformSyntax?: boolean | 'globals-only'
+  sourceMap?: boolean
   liveBindings?: 'strict' | 'loose' | 'off'
   appendJsExtension?: 'off' | 'relative-only' | 'all'
   appendDirectoryIndex?: string | false
@@ -167,6 +168,7 @@ type ModuleOptions = {
 - `cjsDefault` (`auto`): bundler-style default interop vs direct `module.exports`.
 - `idiomaticExports` (`safe`): when raising CJS to ESM, attempt to synthesize `export` statements directly when it is safe. `off` always uses the helper bag; `aggressive` currently matches `safe` heuristics.
 - `out`/`inPlace`: choose output location. Default returns the transformed string (CLI emits to stdout). `out` writes to the provided path. `inPlace` overwrites the input files on disk and does not return/emit the code.
+- `sourceMap` (`false`): when true, returns `{ code, map }` from `transform` and writes the map if you also set `out`/`inPlace`. Maps are generated from the same MagicString pipeline used for the code.
 - `cwd` (`process.cwd()`): Base directory used to resolve relative `out` paths.
 
 > [!NOTE]

@@ -14,6 +14,8 @@ import {
 } from './format.js'
 import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions, Diagnostic } from './types.js'
+import type MagicString from 'magic-string'
+import type { SourceMap } from 'magic-string'
 import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
 import { readFile as fsReadFile, stat, realpath } from 'node:fs/promises'
 import { parse as parseModule } from './parse.js'
@@ -294,11 +296,24 @@ const createDefaultOptions = (): ModuleOptions => ({
   idiomaticExports: 'safe',
   importMetaPrelude: 'auto',
   topLevelAwait: 'error',
+  sourceMap: false,
   cwd: undefined,
   out: undefined,
   inPlace: false,
 })
-const transform = async (filename: string, options?: ModuleOptions) => {
+function transform(
+  filename: string,
+  options: ModuleOptions & { sourceMap: true },
+): Promise<{ code: string; map: SourceMap }>
+function transform(
+  filename: string,
+  options?: ModuleOptions & { sourceMap?: false | undefined },
+): Promise<string>
+function transform(
+  filename: string,
+  options?: ModuleOptions,
+): Promise<string | { code: string; map: SourceMap }>
+async function transform(filename: string, options?: ModuleOptions) {
   const base = createDefaultOptions()
   const opts = options
     ? { ...base, ...options, filePath: filename }
@@ -312,10 +327,18 @@ const transform = async (filename: string, options?: ModuleOptions) => {
   const file = resolve(cwdBase, filename)
   const code = (await readFile(file)).toString()
   const ast = parse(filename, code)
-  let source = await format(code, ast, opts)
+  let sourceCode: MagicString | null = null
+  let source: string
+
+  if (opts.sourceMap) {
+    sourceCode = await format(code, ast, { ...opts, sourceMap: true })
+    source = sourceCode.toString()
+  } else {
+    source = await format(code, ast, opts)
+  }
 
   if (opts.rewriteSpecifier || appendMode !== 'off' || dirIndex) {
-    const code = await specifier.updateSrc(source, getLangFromExt(filename), spec => {
+    const applyRewrite = (spec: any) => {
       if (
         spec.type === 'TemplateLiteral' &&
         opts.rewriteTemplateLiterals === 'static-only'
@@ -332,9 +355,19 @@ const transform = async (filename: string, options?: ModuleOptions) => {
       const appended = appendExtensionIfNeeded(spec, appendMode, dirIndex, baseValue)
 
       return appended ?? rewritten ?? normalized ?? undefined
-    })
+    }
 
-    source = code
+    if (opts.sourceMap && sourceCode) {
+      await specifier.updateMagicString(sourceCode, code, ast, applyRewrite)
+      source = sourceCode.toString()
+    } else {
+      const rewritten = await specifier.updateSrc(
+        source,
+        getLangFromExt(filename),
+        applyRewrite,
+      )
+      source = rewritten
+    }
   }
 
   if (detectCycles !== 'off' && opts.target === 'module' && opts.transformSyntax) {
@@ -349,6 +382,17 @@ const transform = async (filename: string, options?: ModuleOptions) => {
 
   if (outputPath) {
     await writeFile(outputPath, source)
+  }
+
+  if (opts.sourceMap && sourceCode) {
+    const map = sourceCode.generateMap({
+      hires: true,
+      includeContent: true,
+      file: outputPath ?? filename,
+      source: opts.filePath ?? filename,
+    })
+
+    return { code: source, map }
   }
 
   return source
