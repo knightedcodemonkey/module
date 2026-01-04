@@ -165,6 +165,69 @@ describe('@knighted/module', () => {
     assert.equal(diagnostics.length, 0)
   })
 
+  it('supports multi-package allowlists and ignores empty entries', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-allow-multi-'))
+    const file = join(temp, 'entry.mjs')
+    const packages = ['x-core', 'y-core', 'z-core']
+
+    for (const pkg of packages) {
+      const pkgDir = join(temp, 'node_modules', pkg)
+      await mkdir(pkgDir, { recursive: true })
+      await writeFile(
+        join(pkgDir, 'package.json'),
+        JSON.stringify(
+          {
+            name: pkg,
+            version: '1.0.0',
+            exports: {
+              '.': { import: './index.mjs', require: './index.cjs' },
+              './module': './index.mjs',
+            },
+            main: './index.cjs',
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      )
+    }
+
+    await writeFile(
+      file,
+      [
+        "import { X } from 'x-core/module'",
+        "const core = require('x-core')",
+        "import { Y } from 'y-core/module'",
+        "const y = require('y-core')",
+        "import { Z } from 'z-core/module'",
+        "const z = require('z-core')",
+        'console.log(core, X, y, Y, z, Z)',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+
+    t.after(() => rm(temp, { recursive: true, force: true }))
+
+    const diagnostics: any[] = []
+    await transform(file, {
+      target: 'commonjs',
+      detectDualPackageHazard: 'warn',
+      dualPackageHazardAllowlist: [' x-core ', '', 'y-core', '   '],
+      diagnostics: diag => diagnostics.push(diag),
+      cwd: temp,
+    })
+
+    assert.ok(
+      diagnostics.length > 0,
+      'expected remaining hazards for non-allowlisted pkg',
+    )
+    assert.ok(diagnostics.every(d => /z-core/.test(d.message)))
+    const codes = new Set(diagnostics.map(d => d.code))
+    assert.ok(codes.has('dual-package-mixed-specifiers'))
+    assert.ok(codes.has('dual-package-conditional-exports'))
+  })
+
   it('warns on hazard across export forms and dynamic import', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-exports-'))
     const file = join(temp, 'entry.mjs')
