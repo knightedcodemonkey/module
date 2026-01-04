@@ -134,6 +134,7 @@ type ModuleOptions = {
   detectCircularRequires?: 'off' | 'warn' | 'error'
   detectDualPackageHazard?: 'off' | 'warn' | 'error'
   dualPackageHazardScope?: 'file' | 'project'
+  dualPackageHazardAllowlist?: string[]
   requireSource?: 'builtin' | 'create-require'
   importMetaPrelude?: 'off' | 'auto' | 'on'
   cjsDefault?: 'module-exports' | 'auto' | 'none'
@@ -162,6 +163,7 @@ type ModuleOptions = {
 - `detectCircularRequires` (`off`): optionally detect relative static require cycles across `.js`/`.mjs`/`.cjs`/`.ts`/`.mts`/`.cts` (realpath-normalized) and warn/throw.
 - `detectDualPackageHazard` (`warn`): flag when `import` and `require` mix for the same package or root/subpath are combined in ways that can resolve to separate module instances (dual packages). Set to `error` to fail the transform.
 - `dualPackageHazardScope` (`file`): `file` preserves the legacy per-file detector; `project` aggregates package usage across all CLI inputs (useful in monorepos/hoisted installs) and emits one diagnostic per package.
+- `dualPackageHazardAllowlist` (`[]`): suppress dual-package hazard diagnostics for the listed packages. Accepts an array in the API; entries are trimmed and empty values dropped. The CLI flag `--dual-package-hazard-allowlist pkg1,pkg2` parses a comma- or space-separated string into this array. Applies to both `file` and `project` scopes.
 - `topLevelAwait` (`error`): throw, wrap, or preserve when TLA appears in CommonJS output. `wrap` runs the file body inside an async IIFE (exports may resolve after the initial tick); `preserve` leaves `await` at top level, which Node will reject for CJS.
 - `rewriteSpecifier` (off): rewrite relative specifiers to a chosen extension or via a callback. Precedence: the callback (if provided) runs first; if it returns a string, that wins. If it returns `undefined` or `null`, the appenders still apply.
 - `requireSource` (`builtin`): whether `require` comes from Node or `createRequire`.
