@@ -117,6 +117,54 @@ describe('@knighted/module', () => {
     assert.ok(diagnostics.every(d => d.level === 'warning'))
   })
 
+  it('suppresses dual package hazards via allowlist', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-allow-'))
+    const file = join(temp, 'entry.mjs')
+    const pkgDir = join(temp, 'node_modules', 'x-core')
+
+    await mkdir(pkgDir, { recursive: true })
+    await writeFile(
+      join(pkgDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'x-core',
+          version: '1.0.0',
+          exports: {
+            '.': { import: './x-core.mjs', require: './x-core.cjs' },
+            './module': './x-core.mjs',
+          },
+          main: './x-core.cjs',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+    await writeFile(
+      file,
+      [
+        "import { X } from 'x-core/module'",
+        "const core = require('x-core')",
+        'console.log(core, X)',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+
+    t.after(() => rm(temp, { recursive: true, force: true }))
+
+    const diagnostics: any[] = []
+    await transform(file, {
+      target: 'commonjs',
+      detectDualPackageHazard: 'warn',
+      dualPackageHazardAllowlist: [' x-core '],
+      diagnostics: diag => diagnostics.push(diag),
+      cwd: temp,
+    })
+
+    assert.equal(diagnostics.length, 0)
+  })
+
   it('warns on hazard across export forms and dynamic import', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'module-dual-hazard-exports-'))
     const file = join(temp, 'entry.mjs')

@@ -57,6 +57,8 @@ export type ModuleOptions = {
   detectDualPackageHazard?: 'off' | 'warn' | 'error'
   /** Scope for dual package hazard detection. */
   dualPackageHazardScope?: 'file' | 'project'
+  /** Packages to ignore for dual package hazard diagnostics. */
+  dualPackageHazardAllowlist?: string[]
   /** Source used to provide require in ESM output. */
   requireSource?: 'builtin' | 'create-require'
   /** How to rewrite nested or non-hoistable require calls. */

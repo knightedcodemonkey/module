@@ -258,8 +258,10 @@ const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOpt
   const diags = await dualPackageHazardDiagnostics({
     usages,
     hazardLevel,
+    filePath: opts.filePath,
     cwd: opts.cwd,
     manifestCache,
+    hazardAllowlist: opts.dualPackageHazardAllowlist,
   })
   const byFile = new Map<string, Diagnostic[]>()
 
@@ -290,6 +292,7 @@ const createDefaultOptions = (): ModuleOptions => ({
   detectCircularRequires: 'off',
   detectDualPackageHazard: 'warn',
   dualPackageHazardScope: 'file',
+  dualPackageHazardAllowlist: [],
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',

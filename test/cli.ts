@@ -175,6 +175,58 @@ test('-H error exits on dual package hazard', async () => {
   }
 })
 
+test('--dual-package-hazard-allowlist suppresses hazards', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-allow-'))
+  const file = join(temp, 'entry.mjs')
+  const pkgDir = join(temp, 'node_modules', 'x-core')
+
+  await mkdir(pkgDir, { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'x-core',
+        version: '1.0.0',
+        exports: {
+          '.': { import: './x-core.mjs', require: './x-core.cjs' },
+          './module': './x-core.mjs',
+        },
+        main: './x-core.cjs',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    file,
+    [
+      "import { X } from 'x-core/module'",
+      "const core = require('x-core')",
+      'console.log(core, X)',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  try {
+    const result = runCli([
+      '--target',
+      'commonjs',
+      '--cwd',
+      temp,
+      '--dual-package-hazard-allowlist',
+      ' x-core ',
+      'entry.mjs',
+    ])
+
+    assert.equal(result.status, 0)
+    assert.ok(!/dual-package-/.test(result.stderr))
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
 test('--dual-package-hazard-scope project aggregates across files', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-project-'))
   const fileImport = join(temp, 'entry.mjs')

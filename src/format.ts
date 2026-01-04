@@ -180,6 +180,12 @@ const describeDualPackage = (pkgJson: any) => {
   return { hasHazardSignals, details, importTarget, requireTarget }
 }
 
+const normalizeAllowlist = (allowlist?: Iterable<string>) => {
+  return new Set(
+    [...(allowlist ?? [])].map(item => item.trim()).filter(item => item.length > 0),
+  )
+}
+
 type HazardLevel = 'warning' | 'error'
 
 export type PackageUse = {
@@ -323,12 +329,16 @@ const dualPackageHazardDiagnostics = async (params: {
   filePath?: string
   cwd?: string
   manifestCache?: Map<string, any | null>
+  hazardAllowlist?: Iterable<string>
 }) => {
   const { usages, hazardLevel, filePath, cwd } = params
   const manifestCache = params.manifestCache ?? new Map<string, any | null>()
+  const allowlist = normalizeAllowlist(params.hazardAllowlist)
   const diags: Diagnostic[] = []
 
   for (const [pkg, usage] of usages) {
+    if (allowlist.has(pkg)) continue
+
     const hasImport = usage.imports.length > 0
     const hasRequire = usage.requires.length > 0
     const combined = [...usage.imports, ...usage.requires]
@@ -402,6 +412,7 @@ const detectDualPackageHazards = async (params: {
     message: string,
     loc?: { start: number; end: number },
   ) => void
+  hazardAllowlist?: Iterable<string>
 }) => {
   const { program, shadowedBindings, hazardLevel, filePath, cwd, diagOnce } = params
   const manifestCache = new Map<string, any | null>()
@@ -412,6 +423,7 @@ const detectDualPackageHazards = async (params: {
     filePath,
     cwd,
     manifestCache,
+    hazardAllowlist: params.hazardAllowlist,
   })
 
   for (const diag of diags) {
@@ -484,6 +496,7 @@ async function format(src: string, ast: ParseResult, opts: FormatterOptions) {
       filePath: opts.filePath,
       cwd: opts.cwd,
       diagOnce,
+      hazardAllowlist: opts.dualPackageHazardAllowlist,
     })
   }
 

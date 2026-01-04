@@ -35,6 +35,7 @@ const defaultOptions: ModuleOptions = {
   detectCircularRequires: 'off',
   detectDualPackageHazard: 'warn',
   dualPackageHazardScope: 'file',
+  dualPackageHazardAllowlist: [],
   requireSource: 'builtin',
   nestedRequireStrategy: 'create-require',
   cjsDefault: 'auto',
@@ -226,6 +227,12 @@ const optionsTable = [
     desc: 'Scope for dual package hazard detection (file|project)',
   },
   {
+    long: 'dual-package-hazard-allowlist',
+    short: undefined,
+    type: 'string',
+    desc: 'Comma-separated packages to ignore for dual package hazard checks',
+  },
+  {
     long: 'top-level-await',
     short: 'a',
     type: 'string',
@@ -351,7 +358,6 @@ const buildHelp = (enableColor: boolean) => {
 
   return `${lines.join('\n')}\n`
 }
-
 const parseEnum = <T extends string>(
   value: string | undefined,
   allowed: readonly T[],
@@ -359,7 +365,6 @@ const parseEnum = <T extends string>(
   if (value === undefined) return undefined
   return allowed.includes(value as T) ? (value as T) : undefined
 }
-
 const parseTransformSyntax = (
   value: string | undefined,
 ): ModuleOptions['transformSyntax'] => {
@@ -369,13 +374,19 @@ const parseTransformSyntax = (
   if (value === 'true') return true
   return defaultOptions.transformSyntax
 }
-
 const parseAppendDirectoryIndex = (value: string | undefined) => {
   if (value === undefined) return undefined
   if (value === 'false') return false
   return value
 }
+const parseAllowlist = (value: string | string[] | undefined) => {
+  const values = value === undefined ? [] : Array.isArray(value) ? value : [value]
 
+  return values
+    .flatMap(entry => String(entry).split(','))
+    .map(item => item.trim())
+    .filter(Boolean)
+}
 const toModuleOptions = (values: ParsedValues): ModuleOptions => {
   const target =
     parseEnum(values.target as string | undefined, ['module', 'commonjs'] as const) ??
@@ -395,7 +406,9 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
   const appendDirectoryIndex = parseAppendDirectoryIndex(
     values['append-directory-index'] as string | undefined,
   )
-
+  const dualPackageHazardAllowlist = parseAllowlist(
+    values['dual-package-hazard-allowlist'] as string | string[] | undefined,
+  )
   const opts: ModuleOptions = {
     ...defaultOptions,
     target,
@@ -420,6 +433,7 @@ const toModuleOptions = (values: ParsedValues): ModuleOptions => {
         values['dual-package-hazard-scope'] as string | undefined,
         ['file', 'project'] as const,
       ) ?? defaultOptions.dualPackageHazardScope,
+    dualPackageHazardAllowlist,
     topLevelAwait:
       parseEnum(
         values['top-level-await'] as string | undefined,
