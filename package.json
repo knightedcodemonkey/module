@@ -77,7 +77,7 @@
   "dependencies": {
     "glob": "^13.0.6",
     "magic-string": "^0.30.21",
-    "oxc-parser": "^0.105.0",
+    "oxc-parser": "^0.116.0",
     "periscopic": "^4.0.2"
   },
   "prettier": {
