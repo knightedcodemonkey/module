@@ -123,6 +123,59 @@ test('--ignore excludes glob matches', async () => {
   }
 })
 
+test('glob expansion excludes directories', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-glob-nodir-'))
+  const nested = join(temp, 'nested')
+  const input = join(temp, 'input.cjs')
+
+  await mkdir(nested, { recursive: true })
+  await copyFile(fixture, input)
+
+  try {
+    const result = runCli(['--list', '--target', 'module', '--cwd', temp, '*'])
+
+    assert.equal(result.status, 0)
+    assert.ok(result.stdout.includes('input.cjs'))
+    assert.ok(!result.stdout.includes('nested'))
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('windows: backslash glob and ignore patterns are honored', async () => {
+  if (process.platform !== 'win32') return
+
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-win-glob-'))
+  const srcDir = join(temp, 'src')
+  const keep = join(srcDir, 'keep.cjs')
+  const ignoredDir = join(temp, 'node_modules', 'pkg')
+  const ignored = join(ignoredDir, 'index.cjs')
+
+  await mkdir(srcDir, { recursive: true })
+  await mkdir(ignoredDir, { recursive: true })
+  await copyFile(fixture, keep)
+  await copyFile(fixture, ignored)
+
+  try {
+    const result = runCli([
+      '--list',
+      '--target',
+      'module',
+      '--cwd',
+      temp,
+      'src\\**\\*.cjs',
+      '--ignore',
+      'node_modules\\**',
+    ])
+
+    assert.equal(result.status, 0)
+    assert.ok(result.stdout.includes('keep.cjs'))
+    assert.ok(!result.stdout.includes('node_modules'))
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
 test('-H error exits on dual package hazard', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'module-cli-dual-hazard-'))
   const file = join(temp, 'entry.mjs')
@@ -654,6 +707,74 @@ test('globals-only pre-tsc flow matches README example', async () => {
         'node_modules/**',
         '--in-place',
         file,
+      ],
+      undefined,
+      { cwd: temp },
+    )
+
+    assert.equal(result.status, 0)
+    const transformed = await readFile(file, 'utf8')
+    assert.ok(!transformed.includes('import.meta'))
+
+    const after = spawnSync(process.execPath, [tscBin, '-p', temp], { encoding: 'utf8' })
+    assert.equal(after.status, 0, after.stderr || after.stdout)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('globals-only pre-tsc flow with README glob pattern', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-pre-tsc-glob-'))
+  const srcDir = join(temp, 'src')
+  const nestedDir = join(srcDir, 'nested')
+  const file = join(nestedDir, 'index.ts')
+
+  await mkdir(nestedDir, { recursive: true })
+  await writeFile(
+    join(temp, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2020',
+          module: 'commonjs',
+          outDir: 'dist',
+          strict: false,
+          esModuleInterop: true,
+          types: ['node'],
+          typeRoots: [join(projectRoot, 'node_modules', '@types')],
+        },
+        include: ['src'],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    file,
+    [
+      "import fs from 'node:fs'",
+      'export const meta = import.meta.url',
+      'export const size = fs.statSync(__filename).size',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  try {
+    const before = spawnSync(process.execPath, [tscBin, '-p', temp], { encoding: 'utf8' })
+    assert.notEqual(before.status, 0)
+
+    const result = runCli(
+      [
+        '--target',
+        'commonjs',
+        '--transform-syntax',
+        'globals-only',
+        '--ignore',
+        'node_modules/**',
+        '--in-place',
+        'src/**/*.{ts,js,mts,cts}',
       ],
       undefined,
       { cwd: temp },

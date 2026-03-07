@@ -5,9 +5,8 @@ import {
   stderr as defaultStderr,
 } from 'node:process'
 import { parseArgs } from 'node:util'
-import { readFile, mkdir, writeFile } from 'node:fs/promises'
+import { readFile, mkdir, writeFile, glob } from 'node:fs/promises'
 import { dirname, resolve, relative, join, basename } from 'node:path'
-import { glob } from 'glob'
 
 import type { TemplateLiteral } from '@oxc-project/types'
 
@@ -539,14 +538,14 @@ const normalizeSourceMapArgv = (argv: string[]) => {
 const expandFiles = async (patterns: string[], cwd: string, ignore?: string[]) => {
   const files = new Set<string>()
   for (const pattern of patterns) {
-    const matches = await glob(pattern, {
+    for await (const match of glob(pattern, {
       cwd,
-      absolute: true,
-      nodir: true,
-      windowsPathsNoEscape: true,
-      ignore,
-    })
-    for (const m of matches) files.add(resolve(m))
+      exclude: ignore,
+      withFileTypes: true,
+    })) {
+      if (match.isDirectory()) continue
+      files.add(resolve(match.parentPath, match.name))
+    }
   }
   return [...files]
 }
