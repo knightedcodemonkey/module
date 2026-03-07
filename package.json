@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -75,7 +75,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "glob": "^13.0.6",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.116.0",
     "periscopic": "^4.0.2"
