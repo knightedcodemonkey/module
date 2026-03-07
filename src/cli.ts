@@ -5,8 +5,8 @@ import {
   stderr as defaultStderr,
 } from 'node:process'
 import { parseArgs } from 'node:util'
-import { readFile, mkdir, writeFile, glob, stat } from 'node:fs/promises'
-import { dirname, resolve, relative, join, basename, isAbsolute } from 'node:path'
+import { readFile, mkdir, writeFile, glob } from 'node:fs/promises'
+import { dirname, resolve, relative, join, basename } from 'node:path'
 
 import type { TemplateLiteral } from '@oxc-project/types'
 
@@ -541,16 +541,10 @@ const expandFiles = async (patterns: string[], cwd: string, ignore?: string[]) =
     for await (const match of glob(pattern, {
       cwd,
       exclude: ignore,
+      withFileTypes: true,
     })) {
-      const candidate = isAbsolute(match) ? resolve(match) : resolve(cwd, match)
-      try {
-        const stats = await stat(candidate)
-        if (!stats.isDirectory()) {
-          files.add(candidate)
-        }
-      } catch {
-        continue
-      }
+      if (match.isDirectory()) continue
+      files.add(resolve(match.parentPath, match.name))
     }
   }
   return [...files]

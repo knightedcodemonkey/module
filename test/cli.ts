@@ -136,6 +136,41 @@ test('glob expansion excludes directories', async () => {
 
     assert.equal(result.status, 0)
     assert.ok(result.stdout.includes('input.cjs'))
+    assert.ok(!result.stdout.includes('nested'))
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('windows: backslash glob and ignore patterns are honored', async () => {
+  if (process.platform !== 'win32') return
+
+  const temp = await mkdtemp(join(tmpdir(), 'module-cli-win-glob-'))
+  const srcDir = join(temp, 'src')
+  const keep = join(srcDir, 'keep.cjs')
+  const ignoredDir = join(temp, 'node_modules', 'pkg')
+  const ignored = join(ignoredDir, 'index.cjs')
+
+  await mkdir(srcDir, { recursive: true })
+  await mkdir(ignoredDir, { recursive: true })
+  await copyFile(fixture, keep)
+  await copyFile(fixture, ignored)
+
+  try {
+    const result = runCli([
+      '--list',
+      '--target',
+      'module',
+      '--cwd',
+      temp,
+      'src\\**\\*.cjs',
+      '--ignore',
+      'node_modules\\**',
+    ])
+
+    assert.equal(result.status, 0)
+    assert.ok(result.stdout.includes('keep.cjs'))
+    assert.ok(!result.stdout.includes('node_modules'))
   } finally {
     await rm(temp, { recursive: true, force: true })
   }
