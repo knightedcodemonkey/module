@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -38,7 +38,7 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build:dual": "babel-dual-package src --extensions .ts",
     "build": "npm run build:types && npm run build:dual",
-    "cycles": "madge --circular src --extensions ts,js --ts-config tsconfig.json",
+    "cycles": "oxlint --import-plugin --tsconfig tsconfig.json -A all -D import/no-cycle src test",
     "prepack": "npm run build"
   },
   "keywords": [
@@ -64,28 +64,21 @@
     "url": "https://github.com/knightedcodemonkey/module/issues"
   },
   "devDependencies": {
-    "@knighted/dump": "^1.0.3",
     "@types/node": "^22.19.3",
     "babel-dual-package": "^1.2.3",
-    "c8": "^10.1.3",
+    "c8": "^11.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "madge": "^8.0.0",
-    "oxlint": "^1.35.0",
+    "oxlint": "^1.51.0",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "glob": "^13.0.0",
+    "glob": "^13.0.6",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.105.0",
     "periscopic": "^4.0.2"
-  },
-  "overrides": {
-    "module-lookup-amd": {
-      "glob": "^9.0.0"
-    }
   },
   "prettier": {
     "arrowParens": "avoid",

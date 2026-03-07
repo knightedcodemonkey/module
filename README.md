@@ -4,14 +4,14 @@
 [![codecov](https://codecov.io/gh/knightedcodemonkey/module/graph/badge.svg?token=AjayQQxghy)](https://codecov.io/gh/knightedcodemonkey/module)
 [![NPM version](https://img.shields.io/npm/v/@knighted/module.svg)](https://www.npmjs.com/package/@knighted/module)
 
-Node.js utility for transforming a JavaScript or TypeScript file from an ES module to CommonJS, or vice versa.
+Node.js utility for transforming a JavaScript or TypeScript file from CommonJS to an ES module, or vice versa.
 
-- ES module ➡️ CommonJS
 - CommonJS ➡️ ES module
+- ES module ➡️ CommonJS
 
 Highlights
 
-- ESM ➡️ CJS and CJS ➡️ ESM with one function call.
+- CJS ➡️ ESM and ESM ➡️ CJS with one function call.
 - Defaults to safe CommonJS output: strict live bindings, import.meta shims, and specifier preservation.
 - Configurable lowering modes: full syntax transforms or globals-only.
 - Specifier tools: add extensions, add directory indexes, or map with a custom callback.
@@ -25,7 +25,7 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 
 ## Requirements
 
-- Node 22 or 24 (tested on 22.21.1 and 24.11.1)
+- Node 22 or 24
 
 ## Install
 
