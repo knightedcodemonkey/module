@@ -264,4 +264,4 @@ const lowerEsmToCjs = (
   return { importTransforms, exportTransforms, needsInterop }
 }
 
-export { exportAssignment, lowerEsmToCjs, type ExportTransform, type ImportTransform }
+export { lowerEsmToCjs, type ExportTransform, type ImportTransform }

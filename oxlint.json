@@ -10,6 +10,7 @@
     {
       "files": ["test/fixtures/**"],
       "rules": {
+        "getter-return": "off",
         "no-unused-vars": "off",
         "no-unused-expressions": "off",
         "no-dupe-class-members": "off",

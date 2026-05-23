@@ -231,4 +231,4 @@ const collectModuleIdentifiers = async (ast: Node, hoisting: boolean = true) => 
   return identifiers
 }
 
-export { collectScopeIdentifiers, collectModuleIdentifiers }
+export { collectModuleIdentifiers }

@@ -189,7 +189,7 @@ const normalizeAllowlist = (allowlist?: Iterable<string>) => {
 
 type HazardLevel = 'warning' | 'error'
 
-export type PackageUse = {
+type PackageUse = {
   spec: string
   subpath: string
   loc?: { start: number; end: number }

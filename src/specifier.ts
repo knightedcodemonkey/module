@@ -354,4 +354,4 @@ const specifier = {
 } satisfies SpecifierApi
 
 export { specifier }
-export type { Spec, Callback }
+export type { Spec }

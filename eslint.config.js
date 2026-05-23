@@ -15,6 +15,20 @@ export default [
       ecmaVersion: 'latest',
       sourceType: 'module',
     },
+    settings: {
+      'import/parsers': {
+        '@typescript-eslint/parser': ['.ts'],
+      },
+      'import/resolver': {
+        typescript: {
+          project: './tsconfig.json',
+          alwaysTryTypes: true,
+        },
+        node: {
+          extensions: ['.js', '.mjs', '.cjs', '.ts'],
+        },
+      },
+    },
     plugins: {
       import: importPlugin,
     },
@@ -33,11 +47,12 @@ export default [
     files: ['src/**/*.ts'],
     rules: {
       'import/no-unused-modules': [
-        'warn',
+        'error',
         {
           missingExports: true,
           unusedExports: true,
-          src: ['src/**/*.ts'],
+          src: ['src/**/*.ts', 'test/**/*.ts'],
+          ignoreExports: ['src/specifier.ts', 'src/types.ts'],
         },
       ],
     },
