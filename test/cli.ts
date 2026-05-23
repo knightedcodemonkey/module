@@ -1,15 +1,15 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { Buffer } from 'node:buffer'
-import { resolve, join, relative } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { mkdtemp, copyFile, readFile, rm, stat, mkdir, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { resolve, join, relative } from 'node:path'
+import { test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 
-import { transform } from '../src/module.js'
 import { runCli as runCliEntry } from '../src/cli.js'
+import { transform } from '../src/module.js'
 
 const require = createRequire(import.meta.url)
 const tsxImport = require.resolve('tsx/esm')
@@ -667,6 +667,7 @@ test('globals-only pre-tsc flow matches README example', async () => {
     JSON.stringify(
       {
         compilerOptions: {
+          rootDir: './src',
           target: 'ES2020',
           module: 'commonjs',
           outDir: 'dist',
@@ -735,6 +736,7 @@ test('globals-only pre-tsc flow with README glob pattern', async () => {
     JSON.stringify(
       {
         compilerOptions: {
+          rootDir: './src',
           target: 'ES2020',
           module: 'commonjs',
           outDir: 'dist',

@@ -1,5 +1,4 @@
-import type { Node, ProgramNode } from './ast.js'
-import { isAstNode } from './ast.js'
+import { isAstNode, type Node, type ProgramNode } from './ast.js'
 
 const hasTopLevelAwait = (program: ProgramNode) => {
   let found = false

@@ -4,7 +4,6 @@ import type { CjsExport, SpannedNode } from '../types.js'
 import { ancestorWalk } from '../walk.js'
 
 const exportsRename = '__exports'
-const requireMainRgx = /(require\.main\s*===\s*module|module\s*===\s*require\.main)/g
 
 const literalPropName = (
   prop: Node,
@@ -398,4 +397,4 @@ const collectCjsExports = async (ast: Node) => {
   return exportsMap
 }
 
-export { exportsRename, requireMainRgx, collectCjsExports }
+export { exportsRename, collectCjsExports }

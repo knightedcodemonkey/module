@@ -1,12 +1,12 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { resolve, join } from 'node:path'
-import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { resolve, join } from 'node:path'
+import { describe, it } from 'node:test'
 
 import { parse } from '../src/parse.js'
-import { collectModuleIdentifiers } from '../src/utils/identifiers.js'
 import { collectCjsExports } from '../src/utils/exports.js'
+import { collectModuleIdentifiers } from '../src/utils/identifiers.js'
 import { getLangFromExt } from '../src/utils/lang.js'
 
 // Use fixtures to more easily track character offsets and line numbers in test cases.

@@ -1,4 +1,5 @@
 import { extname } from 'node:path'
+
 import type { ParserOptions } from 'oxc-parser'
 
 // Determine language from filename extension for specifier rewrite.

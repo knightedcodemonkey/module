@@ -4,24 +4,13 @@
   "rules": {
     "no-console": "error",
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
-    "@typescript-eslint/no-explicit-any": "error",
-    "import/order": [
-      "error",
-      {
-        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
-        "newlines-between": "always",
-        "alphabetize": { "order": "asc", "caseInsensitive": true }
-      }
-    ],
-    "import/no-unused-modules": [
-      "error",
-      { "missingExports": true, "unusedExports": true }
-    ]
+    "@typescript-eslint/no-explicit-any": "error"
   },
   "overrides": [
     {
-      "files": ["test/fixtures/**", "testing.*", "test/helpers/**"],
+      "files": ["test/fixtures/**"],
       "rules": {
+        "getter-return": "off",
         "no-unused-vars": "off",
         "no-unused-expressions": "off",
         "no-dupe-class-members": "off",
@@ -30,12 +19,6 @@
         "no-with": "off",
         "no-console": "off",
         "no-eval": "off"
-      }
-    },
-    {
-      "files": ["test/fixtures/identifiers/**"],
-      "rules": {
-        "no-unused-vars": "off"
       }
     },
     {

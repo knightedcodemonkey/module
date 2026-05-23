@@ -25,7 +25,7 @@ By default `@knighted/module` transforms the one-to-one [differences between ES 
 
 ## Requirements
 
-- Node 22.21.1+ or 24+
+- Node >= 22.21.1 (<23), >= 24 (<25), or >= 26 (<27)
 
 ## Install
 
@@ -221,5 +221,8 @@ Minimal flow:
 dub -t commonjs "src/**/*.{ts,js,mts,cts}" --ignore node_modules/** --transform-syntax globals-only --in-place
 tsc
 ```
+
+> [!NOTE]
+> With TypeScript 6+, when a `tsconfig.json` is present, `rootDir` defaults to `.`. If your config uses `outDir` and includes sources under `src`, set `"rootDir": "./src"` explicitly to avoid TS5011.
 
 This pre-`tsc` step rewrites globals-only (keeps import/export syntax) so the TypeScript checker sees already-rewritten sources; runtime semantics still match the target build.

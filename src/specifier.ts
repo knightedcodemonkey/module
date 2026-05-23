@@ -1,7 +1,9 @@
-import { resolve } from 'node:path'
-import { stat, readFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
+import { stat, readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+
 import MagicString from 'magic-string'
+import { parseSync } from 'oxc-parser'
 import type {
   ParserOptions,
   ParseResult,
@@ -17,7 +19,6 @@ import type {
   ImportExpression,
   CallExpression,
 } from 'oxc-parser'
-import { parseSync } from 'oxc-parser'
 
 import { walk } from './walk.js'
 
@@ -353,4 +354,4 @@ const specifier = {
 } satisfies SpecifierApi
 
 export { specifier }
-export type { Spec, Callback }
+export type { Spec }

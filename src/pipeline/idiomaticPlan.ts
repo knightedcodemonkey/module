@@ -307,4 +307,3 @@ const buildIdiomaticPlan = ({
 }
 
 export { buildIdiomaticPlan }
-export type { IdiomaticPlan, IdiomaticPlanResult }

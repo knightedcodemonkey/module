@@ -1,6 +1,6 @@
 {
   "name": "@knighted/module",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Bidirectional transform for ES modules and CommonJS.",
   "type": "module",
   "main": "dist/module.js",
@@ -22,14 +22,17 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=22.21.1 <23 || >=24 <25"
+    "node": ">=22.21.1 <23 || >=24 <25 || >=26 <27"
   },
   "engineStrict": true,
   "scripts": {
     "check-types": "tsc -p tsconfig.test.json",
     "prettier": "prettier -w .",
     "prettier:check": "prettier -c .",
-    "lint": "oxlint --config oxlint.json .",
+    "lint:oxlint": "oxlint --config oxlint.json .",
+    "lint:eslint": "eslint src test --ext .ts",
+    "lint": "npm run lint:oxlint && npm run lint:eslint",
+    "lint:fix": "oxlint --config oxlint.json --fix . && eslint src test --ext .ts --fix",
     "prepare": "husky",
     "test:base": "tsx --test --test-reporter=spec",
     "test:cli": "npm run test:base -- test/cli.ts",
@@ -64,20 +67,29 @@
     "url": "https://github.com/knightedcodemonkey/module/issues"
   },
   "devDependencies": {
-    "@types/node": "^22.19.3",
-    "babel-dual-package": "^1.2.3",
+    "@types/node": "^25.9.1",
+    "@typescript-eslint/parser": "^8.59.4",
+    "babel-dual-package": "^2.0.1",
     "c8": "^11.0.0",
+    "eslint": "^9.39.4",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
-    "oxlint": "^1.51.0",
+    "lint-staged": "^17.0.5",
+    "oxlint": "^1.66.0",
     "prettier": "^3.7.4",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "magic-string": "^0.30.21",
-    "oxc-parser": "^0.116.0",
-    "periscopic": "^4.0.2"
+    "oxc-parser": "^0.132.0",
+    "periscopic": "^4.0.3"
+  },
+  "overrides": {
+    "c8": {
+      "yargs": ">17.7.2 <19"
+    }
   },
   "prettier": {
     "arrowParens": "avoid",
@@ -90,6 +102,7 @@
       "prettier -c",
       "oxlint --config oxlint.json"
     ],
+    "*.ts": "eslint --ext .ts",
     "*.{json,md,yml,yaml,css,scss,html}": "prettier -c"
   }
 }

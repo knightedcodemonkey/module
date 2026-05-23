@@ -1,18 +1,21 @@
-import { dirname, join, resolve as pathResolve } from 'node:path'
 import { readFile as fsReadFile, stat as fsStat } from 'node:fs/promises'
-import type { Node, ParseResult } from 'oxc-parser'
-import MagicString from 'magic-string'
+import { dirname, join, resolve as pathResolve } from 'node:path'
 
-import type { ExportsMap } from './helpers/ast.js'
-import { hasTopLevelAwait, isAsyncContext } from './helpers/async.js'
-import { isIdentifierName } from './helpers/identifier.js'
+import MagicString from 'magic-string'
+import type { Node, ParseResult } from 'oxc-parser'
+
 import { assignmentExpression } from './formatters/assignmentExpression.js'
 import { identifier } from './formatters/identifier.js'
 import { memberExpression } from './formatters/memberExpression.js'
 import { metaProperty } from './formatters/metaProperty.js'
-import { buildIdiomaticPlan } from './pipeline/idiomaticPlan.js'
+import type { ExportsMap } from './helpers/ast.js'
+import { hasTopLevelAwait, isAsyncContext } from './helpers/async.js'
+import { isIdentifierName } from './helpers/identifier.js'
 import { buildEsmPrelude } from './pipeline/buildEsmPrelude.js'
 import { exportBagToEsm, type WarnOnce } from './pipeline/exportBagToEsm.js'
+import { buildFormatVisitor, type FormatWalkState } from './pipeline/formatVisitor.js'
+import { buildIdiomaticPlan } from './pipeline/idiomaticPlan.js'
+import { interopHelper } from './pipeline/interopHelpers.js'
 import {
   isRequireCall,
   isStaticRequire,
@@ -24,13 +27,11 @@ import {
   type ExportTransform,
   type ImportTransform,
 } from './pipeline/lowerEsmToCjs.js'
-import { buildFormatVisitor, type FormatWalkState } from './pipeline/formatVisitor.js'
-import { interopHelper } from './pipeline/interopHelpers.js'
 import type { Diagnostic, ExportsMeta, FormatterOptions } from './types.js'
+import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 import { collectCjsExports } from './utils/exports.js'
 import { collectModuleIdentifiers } from './utils/identifiers.js'
 import { isValidUrl } from './utils/url.js'
-import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 import { ancestorWalk } from './walk.js'
 
 const isRequireMainMember = (node: Node, shadowed: Set<string>) =>
@@ -188,7 +189,7 @@ const normalizeAllowlist = (allowlist?: Iterable<string>) => {
 
 type HazardLevel = 'warning' | 'error'
 
-export type PackageUse = {
+type PackageUse = {
   spec: string
   subpath: string
   loc?: { start: number; end: number }
@@ -453,12 +454,12 @@ async function format(src: string, ast: ParseResult, opts: FormatterOptions) {
     }
 
     if (diag.level === 'warning') {
-      // eslint-disable-next-line no-console -- used for opt-in diagnostics
+      // eslint-disable-next-line no-console
       console.warn(diag.message)
       return
     }
 
-    // eslint-disable-next-line no-console -- used for opt-in diagnostics
+    // eslint-disable-next-line no-console
     console.error(diag.message)
   }
   const diagOnce = (

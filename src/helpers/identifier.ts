@@ -1,6 +1,6 @@
+import type { Program as EstreeProgram } from 'estree'
 import type { Node, IdentifierName } from 'oxc-parser'
 import { analyze, type Scope as PeriscopicScope } from 'periscopic'
-import type { Program as EstreeProgram } from 'estree'
 
 /**
  * Focus exclusively on IdentifierName type as it has the name property,

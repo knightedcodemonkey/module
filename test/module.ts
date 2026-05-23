@@ -1,12 +1,12 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { resolve, join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
-import { createRequire } from 'node:module'
-import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import type { Stats } from 'node:fs'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { resolve, join } from 'node:path'
+import { describe, it } from 'node:test'
+import { pathToFileURL } from 'node:url'
 
 import { transform } from '../src/module.js'
 
@@ -836,17 +836,19 @@ describe('@knighted/module', () => {
   it('warns on circular requires when warnings are enabled', async t => {
     const fixturePath = join(fixtures, 'cycles', 'a.cjs')
     const warnings: string[] = []
-    /* eslint-disable no-console -- capture warn output for cycle detection */
+
+    // eslint-disable-next-line no-console
     const originalWarn = console.warn
 
     t.after(() => {
+      // eslint-disable-next-line no-console
       console.warn = originalWarn
     })
 
+    // eslint-disable-next-line no-console
     console.warn = (...args: any[]) => {
       warnings.push(args.join(' '))
     }
-    /* eslint-enable no-console */
 
     await transform(fixturePath, {
       target: 'module',

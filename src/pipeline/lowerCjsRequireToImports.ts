@@ -1,5 +1,7 @@
 import MagicString from 'magic-string'
 
+import { requireInteropName } from './interopHelpers.js'
+
 import {
   isCallExpressionNode,
   type CallExpressionNode,
@@ -7,7 +9,6 @@ import {
   type ProgramNode,
   type Node,
 } from '../helpers/ast.js'
-import { requireInteropName } from './interopHelpers.js'
 
 type RequireTransform = {
   start: number

@@ -1,7 +1,7 @@
-import { exportsRename } from '../utils/exports.js'
 import { requireInteropHelper } from './interopHelpers.js'
 
 import type { FormatterOptions } from '../types.js'
+import { exportsRename } from '../utils/exports.js'
 
 type BuildEsmPreludeOptions = {
   needsCreateRequire: boolean
