@@ -667,6 +667,7 @@ test('globals-only pre-tsc flow matches README example', async () => {
     JSON.stringify(
       {
         compilerOptions: {
+          rootDir: './src',
           target: 'ES2020',
           module: 'commonjs',
           outDir: 'dist',
@@ -735,6 +736,7 @@ test('globals-only pre-tsc flow with README glob pattern', async () => {
     JSON.stringify(
       {
         compilerOptions: {
+          rootDir: './src',
           target: 'ES2020',
           module: 'commonjs',
           outDir: 'dist',

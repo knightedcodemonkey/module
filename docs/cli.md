@@ -7,7 +7,7 @@ Command-line wrapper around `@knighted/module` for transforming files between ES
 
 ## Requirements
 
-- Node >= 22.21.1 (or Node 24+)
+- Node >= 22.21.1 (<23), >= 24 (<25), or >= 26 (<27)
 
 ## Installation
 

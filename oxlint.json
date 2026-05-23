@@ -1,27 +1,38 @@
 {
   "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**"],
   "plugins": ["eslint", "typescript", "unicorn", "import", "oxc", "node"],
+  "jsPlugins": [{ "name": "import-js", "specifier": "eslint-plugin-import" }],
   "rules": {
     "no-console": "error",
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
     "@typescript-eslint/no-explicit-any": "error",
-    "import/order": [
-      "error",
+    "import-js/order": [
+      "warn",
       {
         "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
         "newlines-between": "always",
         "alphabetize": { "order": "asc", "caseInsensitive": true }
       }
-    ],
-    "import/no-unused-modules": [
-      "error",
-      { "missingExports": true, "unusedExports": true }
     ]
   },
   "overrides": [
     {
-      "files": ["test/fixtures/**", "testing.*", "test/helpers/**"],
+      "files": ["src/**/*.ts"],
       "rules": {
+        "import-js/no-unused-modules": [
+          "warn",
+          {
+            "missingExports": true,
+            "unusedExports": true,
+            "src": ["src/**/*.ts"]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["test/fixtures/**"],
+      "rules": {
+        "import-js/no-unused-modules": "off",
         "no-unused-vars": "off",
         "no-unused-expressions": "off",
         "no-dupe-class-members": "off",
@@ -30,12 +41,6 @@
         "no-with": "off",
         "no-console": "off",
         "no-eval": "off"
-      }
-    },
-    {
-      "files": ["test/fixtures/identifiers/**"],
-      "rules": {
-        "no-unused-vars": "off"
       }
     },
     {
