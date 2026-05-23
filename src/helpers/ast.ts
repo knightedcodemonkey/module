@@ -1,4 +1,5 @@
 import type { Node } from 'oxc-parser'
+
 import type { CjsExport } from '../types.js'
 
 export type { Node }

@@ -1,7 +1,8 @@
 // Complex ESM fixture combining common patterns
-import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
 import { dirname, filename } from './meta.mjs'
 import * as helpers from './values.mjs'
 export * from './reexport.mjs'

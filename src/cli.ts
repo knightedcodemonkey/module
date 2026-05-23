@@ -1,22 +1,22 @@
 #!/usr/bin/env node
+import { readFile, mkdir, writeFile, glob } from 'node:fs/promises'
+import { dirname, resolve, relative, join, basename } from 'node:path'
 import {
   stdin as defaultStdin,
   stdout as defaultStdout,
   stderr as defaultStderr,
 } from 'node:process'
 import { parseArgs } from 'node:util'
-import { readFile, mkdir, writeFile, glob } from 'node:fs/promises'
-import { dirname, resolve, relative, join, basename } from 'node:path'
 
 import type { TemplateLiteral } from '@oxc-project/types'
 
+import { format } from './format.js'
 import { transform, collectProjectDualPackageHazards } from './module.js'
 import { parse } from './parse.js'
-import { format } from './format.js'
 import { specifier } from './specifier.js'
-import { getLangFromExt } from './utils/lang.js'
 import type { ModuleOptions, Diagnostic } from './types.js'
 import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
+import { getLangFromExt } from './utils/lang.js'
 
 const defaultOptions: ModuleOptions = {
   target: 'commonjs',
@@ -911,7 +911,7 @@ if (import.meta.main) {
       if (code !== 0) process.exit(code)
     },
     err => {
-      // eslint-disable-next-line no-console -- CLI surface
+      // eslint-disable-next-line no-console
       console.error(err)
       process.exit(1)
     },

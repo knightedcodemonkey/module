@@ -1,5 +1,7 @@
 import MagicString from 'magic-string'
 
+import { defaultInteropName } from './interopHelpers.js'
+
 import {
   getModuleExportName,
   type ImportDefaultSpecifierNode,
@@ -9,7 +11,6 @@ import {
   type ProgramNode,
 } from '../helpers/ast.js'
 import type { FormatterOptions } from '../types.js'
-import { defaultInteropName } from './interopHelpers.js'
 
 const isValidIdent = (name: string) => /^[$A-Z_a-z][$\w]*$/.test(name)
 

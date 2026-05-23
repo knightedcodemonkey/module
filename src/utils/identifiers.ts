@@ -1,9 +1,10 @@
 import type { Node } from 'oxc-parser'
 
+import { scopeNodes } from './scopeNodes.js'
+
+import { identifier } from '../helpers/identifier.js'
 import type { IdentMeta, SpannedNode, Scope } from '../types.js'
 import { ancestorWalk } from '../walk.js'
-import { identifier } from '../helpers/identifier.js'
-import { scopeNodes } from './scopeNodes.js'
 
 const addBindingNames = (pattern: Node | null | undefined, into: Set<string>) => {
   if (!pattern) return

@@ -1,5 +1,5 @@
-import type { Config } from './utils/config.js'
 import { renderApp } from './ui/app.js'
+import type { Config } from './utils/config.js'
 
 export const boot = async (url: string) => {
   const { loadConfig } = await import('./utils/config.js')

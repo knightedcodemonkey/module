@@ -29,8 +29,10 @@
     "check-types": "tsc -p tsconfig.test.json",
     "prettier": "prettier -w .",
     "prettier:check": "prettier -c .",
-    "lint": "oxlint --config oxlint.json .",
-    "lint:fix": "oxlint --config oxlint.json --fix .",
+    "lint:oxlint": "oxlint --config oxlint.json .",
+    "lint:eslint": "eslint src test --ext .ts",
+    "lint": "npm run lint:oxlint && npm run lint:eslint",
+    "lint:fix": "oxlint --config oxlint.json --fix . && eslint src test --ext .ts --fix",
     "prepare": "husky",
     "test:base": "tsx --test --test-reporter=spec",
     "test:cli": "npm run test:base -- test/cli.ts",
@@ -66,8 +68,10 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "@typescript-eslint/parser": "^8.59.4",
     "babel-dual-package": "^2.0.1",
     "c8": "^11.0.0",
+    "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
@@ -95,7 +99,8 @@
   "lint-staged": {
     "*.{js,ts,tsx,jsx,cjs,mjs}": [
       "prettier -c",
-      "oxlint --config oxlint.json"
+      "oxlint --config oxlint.json",
+      "eslint src test --ext .ts"
     ],
     "*.{json,md,yml,yaml,css,scss,html}": "prettier -c"
   }

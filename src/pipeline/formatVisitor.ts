@@ -1,8 +1,9 @@
 import type MagicString from 'magic-string'
+import type { IdentifierName } from 'oxc-parser'
+
+import type { WarnOnce } from './exportBagToEsm.js'
 
 import type { Node, LiteralNode, CallExpressionNode } from '../helpers/ast.js'
-import type { IdentifierName } from 'oxc-parser'
-import type { WarnOnce } from './exportBagToEsm.js'
 import type { FormatterOptions, ExportsMeta } from '../types.js'
 import { exportsRename } from '../utils/exports.js'
 

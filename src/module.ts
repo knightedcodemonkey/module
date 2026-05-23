@@ -1,27 +1,27 @@
-import { resolve } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
+import { readFile as fsReadFile, stat, realpath } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
 
-import { specifier } from './specifier.js'
-import type { Spec } from './specifier.js'
+import type MagicString from 'magic-string'
+import type { SourceMap } from 'magic-string'
 import type { TemplateLiteral } from 'oxc-parser'
 
-import { parse } from './parse.js'
 import {
   format,
   collectDualPackageUsage,
   dualPackageHazardDiagnostics,
   type PackageUsage,
 } from './format.js'
-import { getLangFromExt } from './utils/lang.js'
-import type { ModuleOptions, Diagnostic } from './types.js'
-import type MagicString from 'magic-string'
-import type { SourceMap } from 'magic-string'
-import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
-import { readFile as fsReadFile, stat, realpath } from 'node:fs/promises'
+import { parse } from './parse.js'
 import { parse as parseModule } from './parse.js'
-import { walk } from './walk.js'
-import { collectModuleIdentifiers } from './utils/identifiers.js'
+import { specifier } from './specifier.js'
+import type { Spec } from './specifier.js'
+import type { ModuleOptions, Diagnostic } from './types.js'
 import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
+import { collectModuleIdentifiers } from './utils/identifiers.js'
+import { getLangFromExt } from './utils/lang.js'
+import { walk } from './walk.js'
 
 type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>
@@ -189,7 +189,8 @@ const detectCircularRequireGraph = async (
       if (mode === 'error') {
         throw new Error(msg)
       }
-      // eslint-disable-next-line no-console -- surfaced when cycle detection is warn-only
+
+      // eslint-disable-next-line no-console
       console.warn(msg)
       return
     }

@@ -1,7 +1,8 @@
 // Complex CJS fixture combining common patterns
-const { join } = require('node:path')
 const { readFileSync } = require('node:fs')
+const { join } = require('node:path')
 const url = require('node:url')
+
 const dynamic = require('./values.cjs')
 
 // module.exports and exports used together

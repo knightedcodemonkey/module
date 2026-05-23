@@ -1,8 +1,8 @@
 import MagicString from 'magic-string'
 import type { Node, AssignmentExpression } from 'oxc-parser'
-import { walk } from '../walk.js'
 
 import type { FormatterOptions, ExportsMeta } from '../types.js'
+import { walk } from '../walk.js'
 
 type AssignmentExpressionArg = {
   node: AssignmentExpression

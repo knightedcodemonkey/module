@@ -1,5 +1,6 @@
-const { basename, bump, value } = require('./lib.cjs')
 const { join } = require('node:path')
+
+const { basename, bump, value } = require('./lib.cjs')
 
 const here = __dirname
 
