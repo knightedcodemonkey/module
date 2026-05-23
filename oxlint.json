@@ -7,9 +7,17 @@
     "unicorn/filename-case": ["error", { "case": "camelCase" }],
     "@typescript-eslint/no-explicit-any": "error",
     "import-js/order": [
-      "warn",
+      "error",
       {
-        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+        "groups": [
+          "builtin",
+          "external",
+          "internal",
+          "sibling",
+          "index",
+          "parent",
+          "type"
+        ],
         "newlines-between": "always",
         "alphabetize": { "order": "asc", "caseInsensitive": true }
       }
