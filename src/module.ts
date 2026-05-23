@@ -1,10 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises'
-import { readFile as fsReadFile, stat, realpath } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { resolve as pathResolve, dirname as pathDirname, extname, join } from 'node:path'
+import { readFile, writeFile, stat, realpath } from 'node:fs/promises'
+import { resolve, dirname, extname, join } from 'node:path'
 
 import type MagicString from 'magic-string'
-import type { SourceMap } from 'magic-string'
 import type { TemplateLiteral } from 'oxc-parser'
 
 import {
@@ -14,9 +11,7 @@ import {
   type PackageUsage,
 } from './format.js'
 import { parse } from './parse.js'
-import { parse as parseModule } from './parse.js'
-import { specifier } from './specifier.js'
-import type { Spec } from './specifier.js'
+import { specifier, type Spec } from './specifier.js'
 import type { ModuleOptions, Diagnostic } from './types.js'
 import { builtinSpecifiers } from './utils/builtinSpecifiers.js'
 import { collectModuleIdentifiers } from './utils/identifiers.js'
@@ -25,6 +20,7 @@ import { walk } from './walk.js'
 
 type AppendJsExtensionMode = NonNullable<ModuleOptions['appendJsExtension']>
 type DetectCircularRequires = NonNullable<ModuleOptions['detectCircularRequires']>
+type SourceMap = import('magic-string').SourceMap
 
 const collapseSpecifier = (value: string) => value.replace(/['"`+)\s]|new String\(/g, '')
 
@@ -110,11 +106,11 @@ const fileExists = async (candidate: string) => {
   }
 }
 
-const normalizePath = async (p: string) => pathResolve(await realpath(p).catch(() => p))
+const normalizePath = async (p: string) => resolve(await realpath(p).catch(() => p))
 
 const resolveRequirePath = async (fromFile: string, spec: string, dirIndex: string) => {
   if (!spec.startsWith('./') && !spec.startsWith('../')) return null
-  const base = pathResolve(pathDirname(fromFile), spec)
+  const base = resolve(dirname(fromFile), spec)
   const ext = extname(base)
   const candidates: string[] = []
 
@@ -140,8 +136,8 @@ const resolveRequirePath = async (fromFile: string, spec: string, dirIndex: stri
 }
 
 const collectStaticRequires = async (filePath: string, dirIndex: string) => {
-  const src = await fsReadFile(filePath, 'utf8')
-  const ast = parseModule(filePath, src)
+  const src = await readFile(filePath, 'utf8')
+  const ast = parse(filePath, src)
   const specs: string[] = []
 
   await walk(ast.program, {
@@ -240,7 +236,7 @@ const collectProjectDualPackageHazards = async (files: string[], opts: ModuleOpt
 
   for (const file of files) {
     const code = await readFile(file, 'utf8')
-    const ast = parseModule(file, code)
+    const ast = parse(file, code)
     const moduleIdentifiers = await collectModuleIdentifiers(ast.program)
     const shadowedBindings = new Set(
       [...moduleIdentifiers.entries()]

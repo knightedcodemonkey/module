@@ -100,9 +100,9 @@
   "lint-staged": {
     "*.{js,ts,tsx,jsx,cjs,mjs}": [
       "prettier -c",
-      "oxlint --config oxlint.json",
-      "eslint src test --ext .ts"
+      "oxlint --config oxlint.json"
     ],
+    "*.ts": "eslint --ext .ts",
     "*.{json,md,yml,yaml,css,scss,html}": "prettier -c"
   }
 }

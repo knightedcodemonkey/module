@@ -1,5 +1,4 @@
-import { visitorKeys } from 'oxc-parser'
-import type { Node } from 'oxc-parser'
+import { visitorKeys, type Node } from 'oxc-parser'
 
 /**
  * Using visitorKeys instead of oxc Visitor to keep
